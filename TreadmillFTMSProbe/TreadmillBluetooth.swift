@@ -1,0 +1,367 @@
+import CoreBluetooth
+import Foundation
+
+struct DiscoveredTreadmill: Identifiable {
+    let id: UUID
+    let name: String
+    let rssi: Int
+}
+
+final class TreadmillBluetooth: NSObject, ObservableObject {
+    @Published private(set) var devices: [DiscoveredTreadmill] = []
+    @Published private(set) var connectionText = "等待蓝牙启动"
+    @Published private(set) var controlText = "尚未请求控制权"
+    @Published private(set) var featureText = "功能：尚未读取"
+    @Published private(set) var speedRangeText = "速度范围：尚未读取"
+    @Published private(set) var inclineRangeText = "坡度范围：尚未读取"
+    @Published private(set) var currentSpeedText = "暂不订阅（连接诊断）"
+    @Published private(set) var logs: [String] = []
+    @Published private(set) var bluetoothReady = false
+    @Published private(set) var connected = false
+    @Published private(set) var controlGranted = false
+    @Published private(set) var controlSubscribed = false
+    @Published private(set) var speedSupported = false
+    @Published private(set) var inclineSupported = false
+    @Published private(set) var commandPending = false
+    @Published var readyForMotion = false
+
+    private let serviceUUID = CBUUID(string: "1826")
+    private let featureUUID = CBUUID(string: "2ACC")
+    private let speedRangeUUID = CBUUID(string: "2AD4")
+    private let inclineRangeUUID = CBUUID(string: "2AD5")
+    private let controlUUID = CBUUID(string: "2AD9")
+    private let statusUUID = CBUUID(string: "2ADA")
+    private let treadmillDataUUID = CBUUID(string: "2ACD")
+
+    private var central: CBCentralManager!
+    private var discovered: [UUID: CBPeripheral] = [:]
+    private var peripheral: CBPeripheral?
+    private var controlCharacteristic: CBCharacteristic?
+    private var pendingOpcode: UInt8?
+    private var pendingToken = UUID()
+    private var speedRange: ClosedRange<Double>?
+    private var inclineRange: ClosedRange<Double>?
+    private var pendingReads: [CBCharacteristic] = []
+
+    var canRequestControl: Bool {
+        connected && controlSubscribed && !commandPending
+    }
+
+    var canSendSpeed: Bool {
+        canRequestControl && controlGranted && speedSupported
+    }
+
+    var canSendIncline: Bool {
+        canRequestControl && controlGranted && inclineSupported
+    }
+
+    override init() {
+        super.init()
+        central = CBCentralManager(delegate: self, queue: .main)
+    }
+
+    func scan() {
+        guard bluetoothReady else { return }
+        devices = []
+        discovered = [:]
+        connectionText = "正在扫描 FTMS 设备…"
+        central.scanForPeripherals(withServices: [serviceUUID], options: nil)
+        log("扫描服务 1826")
+    }
+
+    func connect(_ id: UUID) {
+        guard let device = discovered[id] else { return }
+        central.stopScan()
+        peripheral = device
+        device.delegate = self
+        connectionText = "正在连接 \(device.name ?? id.uuidString)…"
+        central.connect(device, options: nil)
+    }
+
+    func disconnect() {
+        if let peripheral { central.cancelPeripheralConnection(peripheral) }
+    }
+
+    func requestControl() {
+        guard canRequestControl else { return }
+        send([0x00], label: "请求控制权")
+    }
+
+    func setSpeed(_ kmh: Double) {
+        guard readyForMotion && canSendSpeed else { return }
+        if let speedRange, !speedRange.contains(kmh) {
+            log("速度 \(kmh) km/h 超出设备范围")
+            return
+        }
+        let raw = UInt16((kmh * 100).rounded())
+        send([0x02, UInt8(raw & 0xff), UInt8(raw >> 8)],
+             label: String(format: "目标速度 %.1f km/h", kmh))
+    }
+
+    func setIncline(_ percent: Double) {
+        guard readyForMotion && canSendIncline else { return }
+        if let inclineRange, !inclineRange.contains(percent) {
+            log("坡度 \(percent)% 超出设备范围")
+            return
+        }
+        let raw = Int16((percent * 10).rounded())
+        let bits = UInt16(bitPattern: raw)
+        send([0x03, UInt8(bits & 0xff), UInt8(bits >> 8)],
+             label: String(format: "目标坡度 %.0f%%", percent))
+    }
+
+    private func send(_ bytes: [UInt8], label: String) {
+        guard let peripheral, let controlCharacteristic, controlSubscribed,
+              !commandPending else { return }
+        let opcode = bytes[0]
+        pendingOpcode = opcode
+        commandPending = true
+        controlText = "等待回应：\(label)"
+        log("发送 \(label)：\(hex(Data(bytes)))")
+        peripheral.writeValue(Data(bytes), for: controlCharacteristic, type: .withResponse)
+
+        let token = UUID()
+        pendingToken = token
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            guard let self, self.pendingToken == token, self.commandPending else { return }
+            self.log("等待控制点回应超时；暂不发送下一条指令")
+            self.controlText = "回应超时，请断开后重连"
+            // 保持锁定，避免迟到的回应与下一条指令混淆。
+        }
+    }
+
+    private func handleControlResponse(_ data: Data) {
+        let bytes = [UInt8](data)
+        log("控制点返回：\(hex(data))")
+        guard bytes.count >= 3, bytes[0] == 0x80 else { return }
+        let request = bytes[1]
+        let result = bytes[2]
+        guard request == pendingOpcode else {
+            log("返回指令与等待中的指令不一致")
+            return
+        }
+        pendingToken = UUID()
+        pendingOpcode = nil
+        commandPending = false
+
+        let description: String
+        switch result {
+        case 0x01: description = "成功"
+        case 0x02: description = "设备不支持此指令"
+        case 0x03: description = "参数无效"
+        case 0x04: description = "操作失败"
+        case 0x05: description = "没有控制权限"
+        default: description = String(format: "未知结果 0x%02X", result)
+        }
+        if request == 0x00 { controlGranted = result == 0x01 }
+        if result == 0x05 { controlGranted = false }
+        controlText = String(format: "指令 0x%02X：%@", request, description)
+        if request == 0x00 && result == 0x05 {
+            log("设备拒绝标准 FTMS 控制权；请检查其他 APP/遥控器占用或厂商控制限制")
+        }
+    }
+
+    private func resetConnection() {
+        connected = false
+        controlGranted = false
+        controlSubscribed = false
+        speedSupported = false
+        inclineSupported = false
+        commandPending = false
+        pendingOpcode = nil
+        pendingToken = UUID()
+        controlCharacteristic = nil
+        speedRange = nil
+        inclineRange = nil
+        pendingReads = []
+        featureText = "功能：尚未读取"
+        speedRangeText = "速度范围：尚未读取"
+        inclineRangeText = "坡度范围：尚未读取"
+        currentSpeedText = "暂不订阅（连接诊断）"
+        controlText = "尚未请求控制权"
+        readyForMotion = false
+        peripheral = nil
+    }
+
+    private func log(_ message: String) {
+        let time = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+        logs.insert("\(time) \(message)", at: 0)
+        if logs.count > 100 { logs.removeLast() }
+    }
+
+    private func hex(_ data: Data) -> String {
+        data.map { String(format: "%02X", $0) }.joined(separator: " ")
+    }
+
+    private func uint16(_ bytes: [UInt8], _ offset: Int) -> UInt16 {
+        UInt16(bytes[offset]) | UInt16(bytes[offset + 1]) << 8
+    }
+
+    private func readNextCharacteristic() {
+        guard let peripheral, !pendingReads.isEmpty else {
+            log("设备能力读取完成")
+            return
+        }
+        let characteristic = pendingReads.removeFirst()
+        log("读取 \(characteristic.uuid)")
+        peripheral.readValue(for: characteristic)
+    }
+
+    private func errorDetails(_ error: Error?) -> String {
+        guard let error else { return "设备主动断开或蓝牙链路中断（系统未提供错误码）" }
+        let nsError = error as NSError
+        return "\(nsError.localizedDescription) [\(nsError.domain):\(nsError.code)]"
+    }
+}
+
+extension TreadmillBluetooth: CBCentralManagerDelegate {
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        bluetoothReady = central.state == .poweredOn
+        connectionText = bluetoothReady ? "蓝牙已就绪" : "蓝牙不可用：\(central.state.rawValue)"
+    }
+
+    func centralManager(_ central: CBCentralManager,
+                        didDiscover peripheral: CBPeripheral,
+                        advertisementData: [String: Any], rssi RSSI: NSNumber) {
+        let name = peripheral.name ?? (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? "FTMS 设备"
+        discovered[peripheral.identifier] = peripheral
+        let item = DiscoveredTreadmill(id: peripheral.identifier, name: name, rssi: RSSI.intValue)
+        if let index = devices.firstIndex(where: { $0.id == item.id }) {
+            devices[index] = item
+        } else {
+            devices.append(item)
+        }
+    }
+
+    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        connected = true
+        connectionText = "已连接 \(peripheral.name ?? peripheral.identifier.uuidString)"
+        log("已连接，发现服务")
+        peripheral.discoverServices([serviceUUID])
+    }
+
+    func centralManager(_ central: CBCentralManager,
+                        didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        log("连接失败：\(errorDetails(error))")
+        resetConnection()
+        connectionText = "连接失败"
+    }
+
+    func centralManager(_ central: CBCentralManager,
+                        didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        log("连接已断开：\(errorDetails(error))")
+        resetConnection()
+        connectionText = "已断开"
+    }
+}
+
+extension TreadmillBluetooth: CBPeripheralDelegate {
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        if let error { log("发现服务失败：\(error.localizedDescription)"); return }
+        guard let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) else {
+            log("未找到 FTMS 1826 服务")
+            return
+        }
+        peripheral.discoverCharacteristics(
+            [featureUUID, speedRangeUUID, inclineRangeUUID, controlUUID, statusUUID, treadmillDataUUID],
+            for: service
+        )
+    }
+
+    func peripheral(_ peripheral: CBPeripheral,
+                    didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        if let error { log("发现特征失败：\(error.localizedDescription)"); return }
+        let characteristics = service.characteristics ?? []
+        pendingReads = [featureUUID, speedRangeUUID, inclineRangeUUID].compactMap { uuid in
+            characteristics.first { $0.uuid == uuid }
+        }
+        controlCharacteristic = characteristics.first { $0.uuid == controlUUID }
+        guard let controlCharacteristic else {
+            log("未找到控制点 2AD9")
+            return
+        }
+        log("FTMS 特征已发现；先只订阅控制点，随后逐项读取能力")
+        peripheral.setNotifyValue(true, for: controlCharacteristic)
+    }
+
+    func peripheral(_ peripheral: CBPeripheral,
+                    didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+        if let error { log("订阅 \(characteristic.uuid) 失败：\(error.localizedDescription)"); return }
+        if characteristic.uuid == controlUUID {
+            controlSubscribed = characteristic.isNotifying
+            log(controlSubscribed ? "控制点返回已订阅" : "控制点返回未订阅")
+            if controlSubscribed { readNextCharacteristic() }
+        }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral,
+                    didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        if let error {
+            log("读取 \(characteristic.uuid) 失败：\(errorDetails(error))")
+            if [featureUUID, speedRangeUUID, inclineRangeUUID].contains(characteristic.uuid) {
+                readNextCharacteristic()
+            }
+            return
+        }
+        guard let value = characteristic.value else {
+            log("读取 \(characteristic.uuid) 返回空值")
+            if [featureUUID, speedRangeUUID, inclineRangeUUID].contains(characteristic.uuid) {
+                readNextCharacteristic()
+            }
+            return
+        }
+        let bytes = [UInt8](value)
+        switch characteristic.uuid {
+        case featureUUID:
+            if bytes.count >= 8 {
+                let targetFlags = UInt32(bytes[4]) | UInt32(bytes[5]) << 8 |
+                    UInt32(bytes[6]) << 16 | UInt32(bytes[7]) << 24
+                speedSupported = targetFlags & 0x01 != 0
+                inclineSupported = targetFlags & 0x02 != 0
+                featureText = "速度目标：\(speedSupported ? "支持" : "不支持")；坡度目标：\(inclineSupported ? "支持" : "不支持")"
+                log("功能：\(hex(value))")
+            } else { log("功能数据过短：\(hex(value))") }
+        case speedRangeUUID:
+            if bytes.count >= 6 {
+                let minimum = Double(uint16(bytes, 0)) / 100
+                let maximum = Double(uint16(bytes, 2)) / 100
+                let step = Double(uint16(bytes, 4)) / 100
+                if minimum <= maximum { speedRange = minimum...maximum }
+                speedRangeText = String(format: "速度范围：%.1f–%.1f km/h，步进 %.1f", minimum, maximum, step)
+                log("速度范围：\(hex(value))")
+            } else { log("速度范围数据过短：\(hex(value))") }
+        case inclineRangeUUID:
+            if bytes.count >= 6 {
+                let minimum = Double(Int16(bitPattern: uint16(bytes, 0))) / 10
+                let maximum = Double(Int16(bitPattern: uint16(bytes, 2))) / 10
+                let step = Double(uint16(bytes, 4)) / 10
+                if minimum <= maximum { inclineRange = minimum...maximum }
+                inclineRangeText = String(format: "坡度范围：%.0f–%.0f%%，步进 %.0f%%", minimum, maximum, step)
+                log("坡度范围：\(hex(value))")
+            } else { log("坡度范围数据过短：\(hex(value))") }
+        case controlUUID:
+            handleControlResponse(value)
+        case treadmillDataUUID:
+            if bytes.count >= 4, bytes[0] & 0x01 == 0 {
+                let speed = Double(uint16(bytes, 2)) / 100
+                currentSpeedText = String(format: "%.2f km/h", speed)
+            }
+        case statusUUID:
+            log("设备状态：\(hex(value))")
+        default: break
+        }
+        if [featureUUID, speedRangeUUID, inclineRangeUUID].contains(characteristic.uuid) {
+            readNextCharacteristic()
+        }
+    }
+
+    func peripheral(_ peripheral: CBPeripheral,
+                    didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        guard let error else { return }
+        log("写入失败：\(error.localizedDescription)")
+        pendingToken = UUID()
+        pendingOpcode = nil
+        commandPending = false
+        controlText = "写入失败：\(error.localizedDescription)"
+    }
+}
