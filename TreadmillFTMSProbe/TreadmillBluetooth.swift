@@ -14,6 +14,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     @Published private(set) var featureText = "功能：尚未读取"
     @Published private(set) var speedRangeText = "速度范围：尚未读取"
     @Published private(set) var inclineRangeText = "坡度范围：尚未读取"
+    @Published private(set) var extensionText = "厂商扩展：尚未发现"
     @Published private(set) var currentSpeedText = "暂不订阅（连接诊断）"
     @Published private(set) var logs: [String] = []
     @Published private(set) var bluetoothReady = false
@@ -32,19 +33,21 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private let controlUUID = CBUUID(string: "2AD9")
     private let statusUUID = CBUUID(string: "2ADA")
     private let treadmillDataUUID = CBUUID(string: "2ACD")
+    private let extensionUUID = CBUUID(string: "D18D2C10-C44C-11E8-A355-529269FB1459")
 
     private var central: CBCentralManager!
     private var discovered: [UUID: CBPeripheral] = [:]
     private var peripheral: CBPeripheral?
     private var controlCharacteristic: CBCharacteristic?
     private var pendingOpcode: UInt8?
+    private var controlDenied = false
     private var pendingToken = UUID()
     private var speedRange: ClosedRange<Double>?
     private var inclineRange: ClosedRange<Double>?
     private var pendingReads: [CBCharacteristic] = []
 
     var canRequestControl: Bool {
-        connected && controlSubscribed && !commandPending
+        connected && controlSubscribed && !commandPending && !controlDenied && !controlGranted
     }
 
     var canSendSpeed: Bool {
@@ -154,16 +157,20 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         default: description = String(format: "未知结果 0x%02X", result)
         }
         if request == 0x00 { controlGranted = result == 0x01 }
-        if result == 0x05 { controlGranted = false }
+        if result == 0x05 {
+            controlGranted = false
+            if request == 0x00 { controlDenied = true }
+        }
         controlText = String(format: "指令 0x%02X：%@", request, description)
         if request == 0x00 && result == 0x05 {
-            log("设备拒绝标准 FTMS 控制权；请检查其他 APP/遥控器占用或厂商控制限制")
+            log("设备拒绝 FTMS 控制权；本次连接不再重复请求。需核实厂商解锁流程")
         }
     }
 
     private func resetConnection() {
         connected = false
         controlGranted = false
+        controlDenied = false
         controlSubscribed = false
         speedSupported = false
         inclineSupported = false
@@ -177,6 +184,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         featureText = "功能：尚未读取"
         speedRangeText = "速度范围：尚未读取"
         inclineRangeText = "坡度范围：尚未读取"
+        extensionText = "厂商扩展：尚未发现"
         currentSpeedText = "暂不订阅（连接诊断）"
         controlText = "尚未请求控制权"
         readyForMotion = false
@@ -263,7 +271,8 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             return
         }
         peripheral.discoverCharacteristics(
-            [featureUUID, speedRangeUUID, inclineRangeUUID, controlUUID, statusUUID, treadmillDataUUID],
+            [featureUUID, speedRangeUUID, inclineRangeUUID, controlUUID, statusUUID,
+             treadmillDataUUID, extensionUUID],
             for: service
         )
     }
@@ -272,6 +281,14 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
                     didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         if let error { log("发现特征失败：\(error.localizedDescription)"); return }
         let characteristics = service.characteristics ?? []
+        if let extensionCharacteristic = characteristics.first(where: { $0.uuid == extensionUUID }) {
+            let writable = extensionCharacteristic.properties.contains(.write)
+            extensionText = writable ? "厂商扩展：已发现，可写；解锁码未知" : "厂商扩展：已发现，未声明 Write"
+            log("发现厂商扩展 \(extensionUUID)：\(writable ? "可写" : "未声明 Write")；未发送未知报文")
+        } else {
+            extensionText = "厂商扩展：未发现"
+            log("未发现厂商扩展 \(extensionUUID)")
+        }
         pendingReads = [featureUUID, speedRangeUUID, inclineRangeUUID].compactMap { uuid in
             characteristics.first { $0.uuid == uuid }
         }

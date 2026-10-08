@@ -12,7 +12,7 @@ struct ContentView: View {
         NavigationStack {
             List {
                 Section("连接") {
-                    Text("连接诊断版 2 · 控制点优先，逐项读取")
+                    Text("连接诊断版 3 · 识别厂商扩展与控制权拒绝")
                         .font(.footnote)
                     Text(bluetooth.connectionText)
                     Button("扫描 FTMS 跑步机") { bluetooth.scan() }
@@ -33,6 +33,7 @@ struct ContentView: View {
                     Text(bluetooth.featureText)
                     Text(bluetooth.speedRangeText)
                     Text(bluetooth.inclineRangeText)
+                    Text(bluetooth.extensionText)
                     Text("当前跑带速度：\(bluetooth.currentSpeedText)")
                 }
 
@@ -42,6 +43,8 @@ struct ContentView: View {
                         bluetooth.requestControl()
                     }
                     .disabled(!bluetooth.canRequestControl)
+                    Text("若返回 80 00 05，本次连接不会反复请求。厂商扩展需要麦瑞克的正确解锁报文，目前无法安全推定。")
+                        .font(.footnote)
 
                     Toggle("已确认跑带无人，并已在面板上手动启动", isOn: $bluetooth.readyForMotion)
 
