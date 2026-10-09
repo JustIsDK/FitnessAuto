@@ -208,6 +208,13 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
                               for: handshakeCharacteristic, type: .withResponse)
     }
 
+    private func isHandshakeService(_ service: CBService) -> Bool {
+        let value = service.uuid.uuidString.uppercased()
+        return value == "59554C55-8000-6666-8888-4D4552414348" ||
+            value == handshakeServiceUUID.uuidString.uppercased() ||
+            value == handshakeServiceUUIDLE.uuidString.uppercased()
+    }
+
     private func handleVendorNotification(_ data: Data) {
         let bytes = [UInt8](data)
         log("麦瑞克状态返回：\(hex(data))")
@@ -445,11 +452,8 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             vendorText = "麦瑞克协议 FFF0：未发现"
             log("未找到麦瑞克私有服务 FFF0")
         }
-        if let service = peripheral.services?.first(where: {
-            $0.uuid == handshakeServiceUUID || $0.uuid == handshakeServiceUUIDLE ||
-            $0.uuid == handshakeServiceUUIDExact
-        }) {
-            peripheral.discoverCharacteristics([handshakeUUID, handshakeUUIDLE, handshakeUUIDExact], for: service)
+        if let service = peripheral.services?.first(where: { isHandshakeService($0) }) {
+            peripheral.discoverCharacteristics(nil, for: service)
         } else {
             log("未找到麦瑞克握手服务 \(handshakeServiceUUID)")
         }
@@ -459,16 +463,17 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
                     didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         if let error { log("发现特征失败：\(error.localizedDescription)"); return }
         let characteristics = service.characteristics ?? []
-        if service.uuid == handshakeServiceUUID || service.uuid == handshakeServiceUUIDLE ||
-            service.uuid == handshakeServiceUUIDExact {
+        if isHandshakeService(service) {
+            log("握手服务特征：\(characteristics.map { $0.uuid.uuidString }.joined(separator: ", "))")
             guard let characteristic = characteristics.first(where: {
-                $0.uuid == handshakeUUID || $0.uuid == handshakeUUIDLE || $0.uuid == handshakeUUIDExact
+                $0.properties.contains(.write) &&
+                    ($0.properties.contains(.indicate) || $0.properties.contains(.notify))
             }) else {
                 log("未找到麦瑞克握手特征")
                 return
             }
             handshakeCharacteristic = characteristic
-            log("发现麦瑞克握手特征 \(handshakeUUID)")
+            log("发现麦瑞克握手特征 \(characteristic.uuid)")
             if characteristic.properties.contains(.notify) || characteristic.properties.contains(.indicate) {
                 peripheral.setNotifyValue(true, for: characteristic)
             } else {
@@ -522,8 +527,8 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             vendorSubscribed = characteristic.isNotifying
             log(vendorSubscribed ? "麦瑞克状态通知已订阅" : "麦瑞克状态通知未订阅")
             startVendorHandshakeIfReady()
-        } else if characteristic.uuid == handshakeUUID || characteristic.uuid == handshakeUUIDLE ||
-                    characteristic.uuid == handshakeUUIDExact {
+        } else if characteristic == handshakeCharacteristic || characteristic.uuid == handshakeUUID ||
+                    characteristic.uuid == handshakeUUIDLE || characteristic.uuid == handshakeUUIDExact {
             handshakeSubscribed = characteristic.isNotifying
             log(handshakeSubscribed ? "麦瑞克握手返回已订阅" : "麦瑞克握手返回未订阅")
             startVendorHandshakeIfReady()
@@ -547,6 +552,9 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             return
         }
         let bytes = [UInt8](value)
+        if characteristic == handshakeCharacteristic {
+            handleVendorNotification(value)
+        }
         switch characteristic.uuid {
         case featureUUID:
             if bytes.count >= 8 {
@@ -612,8 +620,8 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             }
             return
         }
-        if characteristic.uuid == handshakeUUID || characteristic.uuid == handshakeUUIDLE ||
-            characteristic.uuid == handshakeUUIDExact {
+        if characteristic == handshakeCharacteristic || characteristic.uuid == handshakeUUID ||
+            characteristic.uuid == handshakeUUIDLE || characteristic.uuid == handshakeUUIDExact {
             vendorWritePending = false
             if let error {
                 vendorHandshakePending = false
