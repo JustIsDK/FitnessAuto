@@ -69,12 +69,6 @@ struct PlanLibraryView: View {
             Section {
                 PageIntro(eyebrow: "YOUR ROUTINE", title: "找到自己的节奏。", subtitle: "选择、编辑或导入一套训练计划。")
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
-            Section("导入") {
-                Button("导入计划", systemImage: "square.and.arrow.down") { importing = true }
-                Text("选择 JSON 计划文件，包含计划名称和各阶段的时长、速度、坡度。")
-                    .font(.footnote).foregroundStyle(.secondary)
-                if let message = library.importMessage { Text(message).font(.subheadline).foregroundStyle(.green) }
-            }
             Section("内置计划 · 可复制后修改") {
                 ForEach(WorkoutPlan.presets) { plan in
                     Button { draft = library.draft(from: plan) } label: {
@@ -92,6 +86,12 @@ struct PlanLibraryView: View {
                     }
                 }
                 Button("新建计划", systemImage: "plus") { draft = library.draft() }
+            }
+            Section("导入计划") {
+                Button("导入计划", systemImage: "square.and.arrow.down") { importing = true }
+                Text("选择 JSON 计划文件，包含计划名称和各阶段的时长、速度、坡度。")
+                    .font(.footnote).foregroundStyle(.secondary)
+                if let message = library.importMessage { Text(message).font(.subheadline).foregroundStyle(.green) }
             }
         }
         .disabled(bluetooth.workoutBusy || bluetooth.workoutPaused)

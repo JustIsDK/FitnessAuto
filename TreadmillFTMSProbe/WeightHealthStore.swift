@@ -119,4 +119,38 @@ struct WeightDuplicateReview: Identifiable {
         completed.formUnion(keys)
         UserDefaults.standard.set(Array(completed), forKey: storageKey)
     }
+
+    /// Deletes only samples previously written by FitnessAuto, identified by
+    /// the per-record sync identifier. Other Health sources remain untouched.
+    func delete(_ record: WeightRecord) async {
+        guard available else { return }
+        busy = true
+        defer { busy = false; refreshAuthorization() }
+        do {
+            let keys = [key(record, bmi: false)] + (record.bmi == nil ? [] : [key(record, bmi: true)])
+            var foundSamples: [HKQuantitySample] = []
+            for (type, syncID) in [(weightType, keys[0])] + (record.bmi == nil ? [] : [(bmiType, keys[1])]) {
+                let found = try await samples(for: type, syncID: syncID)
+                foundSamples.append(contentsOf: found)
+            }
+            if !foundSamples.isEmpty { try await health.delete(foundSamples) }
+            completed.subtract(keys)
+            UserDefaults.standard.set(Array(completed), forKey: storageKey)
+            status = "已删除本机记录及 FitnessAuto 写入的健康数据"
+        } catch {
+            status = "健康数据删除失败，本机记录仍可删除：\(error.localizedDescription)"
+        }
+    }
+
+    private func samples(for type: HKQuantityType, syncID: String) async throws -> [HKQuantitySample] {
+        try await withCheckedThrowingContinuation { continuation in
+            let predicate = HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeySyncIdentifier,
+                                                          operatorType: .equalTo, value: syncID)
+            health.execute(HKSampleQuery(sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit,
+                                         sortDescriptors: nil) { _, samples, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: samples as? [HKQuantitySample] ?? []) }
+            })
+        }
+    }
 }

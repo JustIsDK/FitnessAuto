@@ -132,12 +132,6 @@ struct ContentView: View {
                         }
                     }
                 } header: { AppSectionTitle(title: "训练计划", icon: "list.bullet.rectangle") }
-                Section {
-                    DisclosureGroup("训练须知") {
-                    Text("开始计划会启动跑步机；结束或完成计划会发送停止指令。暂停仅暂停自动调节。启停以设备状态确认为准，异常时请使用实体停止键。训练期间保持 APP 在前台；方案二放松阶段保留坡度 15%。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    }
-                }
             }
             .appListStyle()
             .navigationTitle("训练")

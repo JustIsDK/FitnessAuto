@@ -3,7 +3,7 @@ import UIKit
 
 struct WeightView: View {
     @EnvironmentObject private var scale: ScaleBluetooth
-    @StateObject private var health = WeightHealthStore()
+    @EnvironmentObject private var health: WeightHealthStore
     @AppStorage("fitnessauto.weight.health.auto") private var autoHealth = true
     @AppStorage("fitnessauto.weight.heightCm") private var heightText = ""
     @AppStorage("fitnessauto.weight.birthYear") private var birthYear = 0
@@ -35,100 +35,31 @@ struct WeightView: View {
                 HStack {
                     Label("沃莱体脂秤", systemImage: "scalemass").font(.headline)
                     Spacer()
-                    ConnectionBadge(title: scale.active ? "已连接" : "未连接", connected: scale.active)
+                    Button {
+                        inputFocused = false
+                        if scale.active { scale.stop() } else { scale.start(profile: profile) }
+                    } label: {
+                        Text(scale.active ? "已连接" : "未连接")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(scale.active ? AppDesign.accent : .secondary)
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .background((scale.active ? AppDesign.accent : Color.secondary).opacity(0.12), in: Capsule())
+                    }
                 }.padding(.vertical, 4)
                 Text(scale.status).font(.subheadline)
-                Text("请先退出蚂蚁阿福的秤连接页面，再踩秤唤醒。支持 AFU-WL-TZ-A1，无需在系统蓝牙列表中配对。")
+                Text("点击状态按钮连接或断开，站上秤即可开始测量。")
                     .font(.footnote).foregroundStyle(.secondary)
-                if scale.active {
-                    Button("断开体脂秤") { scale.stop() }
-                } else {
-                    Button("连接体脂秤") { inputFocused = false; scale.stop(); scale.start(profile: profile) }
-                }
             }
             Section("本次测量") {
                 MetricTile(title: "本次体重", value: scale.reading.map { String(format: "%.2f", $0.kilograms) } ?? "—", unit: "kg", icon: "scalemass")
                     .listRowSeparator(.hidden)
-                Text(scale.reading?.stable == true ? "体重已稳定，可保存" : "等待体重稳定")
+                Text(scale.reading?.stable == true ? "体重已稳定，已自动保存" : "等待体重稳定")
                     .font(.caption).foregroundStyle(.secondary)
-                HStack {
-                    Text("身高")
-                    TextField("输入身高", text: $heightText).keyboardType(.decimalPad).multilineTextAlignment(.trailing).focused($inputFocused)
-                    Text("cm").foregroundStyle(.secondary)
-                }
                 if let height, let reading = scale.reading, let bmi = ScaleReading.bmi(weight: reading.kilograms, heightCm: height) {
                     LabeledContent("BMI", value: String(format: "%.1f", bmi))
                 } else { LabeledContent("BMI", value: "填写身高后计算") }
-                DisclosureGroup("体脂测量状态") {
-                    LabeledContent("阻抗", value: scale.reading?.hasImpedance == true ? "已收到数据" : "尚未收到有效数据")
-                    Text("体脂率解析暂未完成。当前记录体重与 BMI，BMI 根据体重和填写的身高计算。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-                Button(scale.saved ? "本次测量已保存" : "保存本次测量") {
-                    inputFocused = false
-                    scale.save(heightCm: height)
-                    if autoHealth, let record = scale.records.first {
-                        Task { await health.save(record) }
-                    }
-                }
-                    .buttonStyle(AppPrimaryButtonStyle())
-                    .disabled(!scale.canSave)
-                Text("记录保存在本机；健康授权后可自动同步体重与 BMI。离开此页面或进入后台会断开体脂秤。")
+                Text("测量稳定后会自动保存；健康同步可在设置中管理。离开此页面或进入后台会断开体脂秤。")
                     .font(.footnote).foregroundStyle(.secondary)
-            }
-            Section("苹果健康") {
-                Button(health.fullyAuthorized ? "已授权体重与 BMI" : "授权体重与 BMI") {
-                    inputFocused = false
-                    Task { await health.authorize() }
-                }.disabled(!health.available || health.busy || health.fullyAuthorized)
-                Toggle("测量完成后自动保存并同步", isOn: $autoHealth)
-                Text("授权后，收到最终测量会保存到本机并同步；BMI 使用本次保存的身高计算。体脂率等尚未解析的指标不会写入。")
-                    .font(.footnote).foregroundStyle(.secondary)
-                Text(health.status).font(.footnote).foregroundStyle(.secondary)
-                if health.busy { ProgressView("正在处理苹果健康…") }
-                Text("写入前检查相近记录并提示可能重复。检查依赖健康读取权限；建议只开启一个 APP 的健康同步。删除本机记录不会删除健康里的数据。")
-                    .font(.footnote).foregroundStyle(.secondary)
-            }
-            Section("个人资料") {
-                DisclosureGroup("测量资料与设备设置") {
-                Text("体重通知不需要初始化；体脂测量可能需要个人资料。填写与蚂蚁阿福一致的资料后应用，再离秤重新裸脚站稳测量。资料字段仍需真机核对。")
-                    .font(.footnote).foregroundStyle(.secondary)
-                Button {
-                    inputFocused = false
-                    showingBirthMonthPicker = true
-                } label: {
-                    HStack {
-                        Text("出生年月").foregroundStyle(.primary)
-                        Spacer()
-                        Text(birthYear > 0 && (1...12).contains(birthMonth)
-                             ? "\(String(birthYear)) 年 \(birthMonth) 月" : "请选择")
-                            .foregroundStyle(.secondary)
-                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                LabeledContent("当前年龄", value: age.map { "\($0) 岁" } ?? "请选择有效出生年月")
-                Text("出生年月只需填写一次，测量时自动计算年龄，按出生月份更新。")
-                    .font(.footnote).foregroundStyle(.secondary)
-                Picker("性别", selection: $sex) {
-                    Text("请选择").tag(-1)
-                    Text("女").tag(0)
-                    Text("男").tag(1)
-                }.pickerStyle(.segmented)
-                profileInput("最近体重", text: $referenceText, unit: "kg")
-                if let reading = scale.reading {
-                    Button("使用本次体重填写最近体重") {
-                        inputFocused = false
-                        referenceText = String(format: "%.2f", reading.kilograms)
-                    }
-                }
-                Text("身高沿用上方输入值，初始化暂支持整数厘米。最近体重可用上方按钮自动填写。")
-                    .font(.footnote).foregroundStyle(.secondary)
-                Button("应用资料并准备体脂测量") {
-                    inputFocused = false
-                    if let profile { scale.prepareComposition(profile) }
-                }.disabled(!scale.active || profile == nil)
-                Text(scale.compositionStatus).font(.footnote).foregroundStyle(.secondary)
-                }
             }
             Section("测量记录") {
                 if scale.records.isEmpty {
@@ -151,7 +82,7 @@ struct WeightView: View {
                             Task { await health.save(record) }
                         }.disabled(health.saved(record) || health.busy)
                     }
-                }.onDelete(perform: scale.delete)
+                }.onDelete(perform: deleteRecords)
             }
         }
         .appListStyle()
@@ -180,10 +111,9 @@ struct WeightView: View {
         }
         .onAppear { health.refreshAuthorization() }
         .onChange(of: scale.reading) { _, reading in
-            guard autoHealth, health.weightAuthorized || health.bmiAuthorized,
-                  reading?.stable == true, reading?.resistance1 != nil, scale.canSave else { return }
+            guard reading?.stable == true, scale.canSave else { return }
             scale.save(heightCm: height)
-            if let record = scale.records.first {
+            if autoHealth, let record = scale.records.first {
                 Task { await health.save(record, requestPermission: false) }
             }
         }
@@ -202,10 +132,18 @@ struct WeightView: View {
             Text(unit).foregroundStyle(.secondary)
         }
     }
+
+    private func deleteRecords(at offsets: IndexSet) {
+        let records = offsets.compactMap { scale.records.indices.contains($0) ? scale.records[$0] : nil }
+        Task {
+            for record in records { await health.delete(record) }
+            scale.delete(at: offsets)
+        }
+    }
 }
 
 /// Explicit wheel layout keeps long year lists scrollable and independent of live BLE updates.
-private struct BirthMonthPicker: View {
+struct BirthMonthPicker: View {
     @Environment(\.dismiss) private var dismiss
     @State private var year: Int
     @State private var month: Int

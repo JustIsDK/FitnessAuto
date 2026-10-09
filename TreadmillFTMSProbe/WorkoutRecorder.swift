@@ -287,8 +287,23 @@ struct WorkoutRecordsView: View {
 
 struct SettingsView: View {
     @EnvironmentObject private var recorder: WorkoutRecorder
+    @EnvironmentObject private var weightHealth: WeightHealthStore
     @EnvironmentObject private var scale: ScaleBluetooth
     @AppStorage("fitnessauto.weight.health.auto") private var autoWeightHealth = true
+    @AppStorage("fitnessauto.weight.heightCm") private var heightText = ""
+    @AppStorage("fitnessauto.weight.birthYear") private var birthYear = 0
+    @AppStorage("fitnessauto.weight.birthMonth") private var birthMonth = 0
+    @AppStorage("fitnessauto.weight.sex") private var sex = -1
+    @AppStorage("fitnessauto.weight.referenceKg") private var referenceText = ""
+    @State private var showingBirthMonthPicker = false
+    @FocusState private var inputFocused: Bool
+    private var height: Double? { Double(heightText).flatMap { (90...240).contains($0) ? $0 : nil } }
+    private var age: Int? { ScaleBirthMonth.age(year: birthYear, month: birthMonth) }
+    private var profile: ScaleProfile? {
+        guard let height, height.rounded() == height, let age, sex == 0 || sex == 1, let reference = Double(referenceText) else { return nil }
+        let value = ScaleProfile(heightCm: Int(height), age: age, male: sex == 1, referenceKg: reference)
+        return value.valid ? value : nil
+    }
     var body: some View {
         List {
             Section {
@@ -300,10 +315,50 @@ struct SettingsView: View {
                     Task { await recorder.authorize() }
                 }.disabled(recorder.saving || recorder.healthAuthorized)
                 Text(recorder.status).font(.footnote).foregroundStyle(.secondary)
+                Button(weightHealth.fullyAuthorized ? "体重与 BMI 已授权" : "授权体重与 BMI") {
+                    Task { await weightHealth.authorize() }
+                }.disabled(weightHealth.busy || weightHealth.fullyAuthorized)
+                Text(weightHealth.status).font(.footnote).foregroundStyle(.secondary)
             }
             Section("个人信息") {
+                HStack {
+                    Text("身高")
+                    Spacer()
+                    TextField("请输入", text: $heightText).keyboardType(.decimalPad).multilineTextAlignment(.trailing).focused($inputFocused)
+                    Text("cm").foregroundStyle(.secondary)
+                }
+                Button {
+                    inputFocused = false
+                    showingBirthMonthPicker = true
+                } label: {
+                    HStack {
+                        Text("出生年月")
+                        Spacer()
+                        Text(birthYear > 0 && (1...12).contains(birthMonth) ? "\(birthYear) 年 \(birthMonth) 月" : "请选择")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                LabeledContent("当前年龄", value: age.map { "\($0) 岁" } ?? "请选择出生年月")
+                Picker("性别", selection: $sex) {
+                    Text("请选择").tag(-1); Text("女").tag(0); Text("男").tag(1)
+                }.pickerStyle(.segmented)
+                HStack {
+                    Text("最近体重")
+                    Spacer()
+                    TextField("请输入", text: $referenceText).keyboardType(.decimalPad).multilineTextAlignment(.trailing).focused($inputFocused)
+                    Text("kg").foregroundStyle(.secondary)
+                }
+                Button("应用资料并准备体脂测量") {
+                    inputFocused = false
+                    if let profile { scale.prepareComposition(profile) }
+                }.disabled(!scale.active || profile == nil)
+                Text(scale.compositionStatus).font(.footnote).foregroundStyle(.secondary)
+                Text("出生年月只需填写一次，测量时会自动计算年龄。")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section("测量") {
                 NavigationLink(destination: WeightView()) {
-                    Label("身高、出生年月与性别", systemImage: "person.text.rectangle")
+                    Label("打开体重管理", systemImage: "scalemass")
                 }
             }
             Section("APP 信息") {
@@ -330,5 +385,12 @@ struct SettingsView: View {
         .appListStyle()
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
+        .scrollDismissesKeyboard(.interactively)
+        .sheet(isPresented: $showingBirthMonthPicker) {
+            BirthMonthPicker(year: birthYear, month: birthMonth) { year, month in
+                birthYear = year
+                birthMonth = month
+            }
+        }
     }
 }

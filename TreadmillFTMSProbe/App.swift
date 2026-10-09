@@ -6,6 +6,7 @@ struct TreadmillFTMSProbeApp: App {
 
     @StateObject private var library = PlanLibrary()
     @StateObject private var scale = ScaleBluetooth()
+    @StateObject private var weightHealth = WeightHealthStore()
 
     var body: some Scene {
         WindowGroup {
@@ -14,6 +15,7 @@ struct TreadmillFTMSProbeApp: App {
                 .environmentObject(library)
                 .environmentObject(bluetooth.recorder)
                 .environmentObject(scale)
+                .environmentObject(weightHealth)
                 .tint(AppDesign.accent)
         }
     }
