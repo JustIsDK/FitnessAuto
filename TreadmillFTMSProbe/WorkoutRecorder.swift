@@ -267,6 +267,16 @@ struct WorkoutRecordsView: View {
                     }.padding(.vertical, 4)
                 }
             }
+            Section {
+                NavigationLink(destination: DiagnosticsView()) {
+                    Label("连接与诊断", systemImage: "wrench.and.screwdriver")
+                }
+                NavigationLink(destination: AboutView()) {
+                    Label("关于 FitnessAuto", systemImage: "info.circle")
+                }
+            } footer: {
+                Text("连接、版本和设备诊断信息集中在这里。")
+            }
         }.appListStyle()
             .navigationTitle("运动记录")
             .navigationBarTitleDisplayMode(.inline)
@@ -282,5 +292,38 @@ struct WorkoutRecordsView: View {
                           Task { await recorder.saveToHealth(review.record, allowDuplicate: true) }
                       })
             }
+    }
+}
+
+struct AboutView: View {
+    @EnvironmentObject private var scale: ScaleBluetooth
+    var body: some View {
+        List {
+            Section {
+                PageIntro(eyebrow: "ABOUT FITNESSAUTO", title: "关于这款应用。", subtitle: "查看版本信息和设备诊断。")
+            }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
+            Section("应用") {
+                LabeledContent("APP 构建", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "未知")
+            }
+            Section("设备诊断") {
+                NavigationLink(destination: DiagnosticsView()) {
+                    Label("跑步机连接与诊断", systemImage: "figure.run.circle")
+                }
+                DisclosureGroup("体脂秤诊断日志") {
+                    if scale.logs.isEmpty {
+                        Text("暂无体脂秤日志").foregroundStyle(.secondary)
+                    } else {
+                        Text(scale.logs.joined(separator: "\n"))
+                            .font(.caption.monospaced()).textSelection(.enabled)
+                        ShareLink(item: scale.logs.joined(separator: "\n")) {
+                            Label("导出诊断日志", systemImage: "square.and.arrow.up")
+                        }
+                    }
+                }
+            }
+        }
+        .appListStyle()
+        .navigationTitle("关于")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

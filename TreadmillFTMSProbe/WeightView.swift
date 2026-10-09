@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 struct WeightView: View {
-    @StateObject private var scale = ScaleBluetooth()
+    @EnvironmentObject private var scale: ScaleBluetooth
     @StateObject private var health = WeightHealthStore()
     @AppStorage("fitnessauto.weight.health.auto") private var autoHealth = true
     @AppStorage("fitnessauto.weight.heightCm") private var heightText = ""
@@ -152,13 +152,6 @@ struct WeightView: View {
                         }.disabled(health.saved(record) || health.busy)
                     }
                 }.onDelete(perform: scale.delete)
-            }
-            Section {
-                LabeledContent("APP 构建", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "未知")
-                DisclosureGroup("连接诊断") {
-                    Text(scale.logs.joined(separator: "\n")).font(.caption.monospaced()).textSelection(.enabled)
-                    ShareLink(item: scale.logs.joined(separator: "\n")) { Label("导出诊断日志", systemImage: "square.and.arrow.up") }
-                }
             }
         }
         .appListStyle()
