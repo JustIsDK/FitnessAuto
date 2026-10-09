@@ -43,6 +43,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private let vendorServiceUUID = CBUUID(string: "FFF0")
     private let vendorNotifyUUID = CBUUID(string: "FFF1")
     private let vendorWriteUUID = CBUUID(string: "FFF2")
+    private let handshakeServiceUUID = CBUUID(string: "48434152-454D-8888-6666-0080554C5559")
+    private let handshakeUUID = CBUUID(string: "48434152-454D-8888-6666-0000554C5559")
 
     private var central: CBCentralManager!
     private var discovered: [UUID: CBPeripheral] = [:]
@@ -51,6 +53,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private var autoConnectAttempted = false
     private var controlCharacteristic: CBCharacteristic?
     private var vendorWriteCharacteristic: CBCharacteristic?
+    private var handshakeCharacteristic: CBCharacteristic?
+    private var handshakeSubscribed = false
     private var vendorSubscribed = false
     private var vendorAuthorized = false
     private var vendorHandshakePending = false
@@ -185,10 +189,23 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         peripheral.writeValue(Data(bytes), for: vendorWriteCharacteristic, type: .withResponse)
     }
 
+    private func startVendorHandshakeIfReady() {
+        guard vendorSubscribed, handshakeCharacteristic != nil,
+              handshakeSubscribed, !vendorAuthorized, !vendorHandshakePending,
+              !vendorWritePending else { return }
+        vendorHandshakePending = true
+        guard let peripheral, let handshakeCharacteristic else { return }
+        vendorWritePending = true
+        log("发送 麦瑞克私有控制握手：AA 01 00 01 55")
+        peripheral.writeValue(Data([0xAA, 0x01, 0x00, 0x01, 0x55]),
+                              for: handshakeCharacteristic, type: .withResponse)
+    }
+
     private func handleVendorNotification(_ data: Data) {
         let bytes = [UInt8](data)
         log("麦瑞克状态返回：\(hex(data))")
         if bytes == [0xAA, 0x01, 0x00, 0x01, 0x55] {
+            vendorWritePending = false
             vendorHandshakePending = false
             vendorAuthorized = true
             vendorText = "麦瑞克协议 FFF0：已握手"
@@ -287,6 +304,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         pendingToken = UUID()
         controlCharacteristic = nil
         vendorWriteCharacteristic = nil
+        handshakeCharacteristic = nil
+        handshakeSubscribed = false
         vendorSubscribed = false
         vendorAuthorized = false
         vendorHandshakePending = false
@@ -378,7 +397,7 @@ extension TreadmillBluetooth: CBCentralManagerDelegate {
         connectionText = "已连接 \(peripheral.name ?? peripheral.identifier.uuidString)"
         autoConnectText = "已自动连接跑步机"
         log("已连接，发现服务")
-        peripheral.discoverServices([serviceUUID, vendorServiceUUID])
+        peripheral.discoverServices([serviceUUID, vendorServiceUUID, handshakeServiceUUID])
     }
 
     func centralManager(_ central: CBCentralManager,
@@ -414,12 +433,31 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             vendorText = "麦瑞克协议 FFF0：未发现"
             log("未找到麦瑞克私有服务 FFF0")
         }
+        if let service = peripheral.services?.first(where: { $0.uuid == handshakeServiceUUID }) {
+            peripheral.discoverCharacteristics([handshakeUUID], for: service)
+        } else {
+            log("未找到麦瑞克握手服务 \(handshakeServiceUUID)")
+        }
     }
 
     func peripheral(_ peripheral: CBPeripheral,
                     didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         if let error { log("发现特征失败：\(error.localizedDescription)"); return }
         let characteristics = service.characteristics ?? []
+        if service.uuid == handshakeServiceUUID {
+            guard let characteristic = characteristics.first(where: { $0.uuid == handshakeUUID }) else {
+                log("未找到麦瑞克握手特征 \(handshakeUUID)")
+                return
+            }
+            handshakeCharacteristic = characteristic
+            log("发现麦瑞克握手特征 \(handshakeUUID)")
+            if characteristic.properties.contains(.notify) || characteristic.properties.contains(.indicate) {
+                peripheral.setNotifyValue(true, for: characteristic)
+            } else {
+                startVendorHandshakeIfReady()
+            }
+            return
+        }
         if service.uuid == vendorServiceUUID {
             vendorWriteCharacteristic = characteristics.first { $0.uuid == vendorWriteUUID &&
                 $0.properties.contains(.write) }
@@ -465,12 +503,11 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
         } else if characteristic.uuid == vendorNotifyUUID {
             vendorSubscribed = characteristic.isNotifying
             log(vendorSubscribed ? "麦瑞克状态通知已订阅" : "麦瑞克状态通知未订阅")
-            if vendorSubscribed {
-                // Captured official-app sequence: establish private control
-                // handshake before querying status or sending target values.
-                vendorHandshakePending = true
-                writeVendor([0xAA, 0x01, 0x00, 0x01, 0x55], label: "麦瑞克私有控制握手")
-            }
+            startVendorHandshakeIfReady()
+        } else if characteristic.uuid == handshakeUUID {
+            handshakeSubscribed = characteristic.isNotifying
+            log(handshakeSubscribed ? "麦瑞克握手返回已订阅" : "麦瑞克握手返回未订阅")
+            startVendorHandshakeIfReady()
         }
     }
 
@@ -530,6 +567,8 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             log("设备状态：\(hex(value))")
         case vendorNotifyUUID:
             handleVendorNotification(value)
+        case handshakeUUID:
+            handleVendorNotification(value)
         default: break
         }
         if [featureUUID, speedRangeUUID, inclineRangeUUID].contains(characteristic.uuid) {
@@ -551,6 +590,15 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             if vendorInitialQueryPending {
                 vendorInitialQueryPending = false
                 refreshVendorStatus()
+            }
+            return
+        }
+        if characteristic.uuid == handshakeUUID {
+            vendorWritePending = false
+            if let error {
+                vendorHandshakePending = false
+                vendorAuthorized = false
+                log("麦瑞克握手写入失败：\(errorDetails(error))")
             }
             return
         }
