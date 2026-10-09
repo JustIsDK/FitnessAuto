@@ -13,7 +13,8 @@ struct ContentView: View {
     private var displayPlan: WorkoutPlan { bluetooth.currentPlan ?? selectedPlan }
 
     var body: some View {
-        NavigationStack {
+        TabView {
+            NavigationStack {
             List {
                 Section {
                     PageIntro(eyebrow: "FITNESSAUTO", title: "每一步，都有节奏。", subtitle: "连接跑步机，让计划带着你向前。")
@@ -37,7 +38,7 @@ struct ContentView: View {
                                 Label("扫描并连接跑步机", systemImage: "antenna.radiowaves.left.and.right")
                                     .frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(AppPrimaryButtonStyle())
                             .disabled(!bluetooth.bluetoothReady)
                             if !bluetooth.devices.isEmpty {
                                 VStack(alignment: .leading, spacing: 6) {
@@ -241,6 +242,23 @@ struct ContentView: View {
                 if !connected { workoutConfirmed = false }
             }
             .onChange(of: bluetooth.workoutBusy) { _, busy in UIApplication.shared.isIdleTimerDisabled = busy }
+            }
+            .tabItem { Label("训练", systemImage: "figure.run") }
+
+            NavigationStack {
+                PlanLibraryView()
+            }
+            .tabItem { Label("计划库", systemImage: "list.bullet.rectangle") }
+
+            NavigationStack {
+                WeightView()
+            }
+            .tabItem { Label("体重管理", systemImage: "scalemass") }
+
+            NavigationStack {
+                WorkoutRecordsView()
+            }
+            .tabItem { Label("运动记录", systemImage: "heart.text.square") }
         }
     }
 

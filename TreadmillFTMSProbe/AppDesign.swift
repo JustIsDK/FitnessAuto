@@ -97,7 +97,7 @@ struct AppPrimaryButtonStyle: ButtonStyle {
         configuration.label
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: 52)
-            .foregroundStyle(enabled ? Color(uiColor: .systemBackground) : Color.secondary)
+            .foregroundStyle(enabled ? Color.white : Color.secondary)
             .background(enabled ? AppDesign.accent : Color(uiColor: .tertiarySystemFill),
                         in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .opacity(configuration.isPressed ? 0.82 : 1)
