@@ -3,6 +3,8 @@ import UIKit
 
 struct WeightView: View {
     @StateObject private var scale = ScaleBluetooth()
+    @StateObject private var health = WeightHealthStore()
+    @AppStorage("fitnessauto.weight.health.auto") private var autoHealth = true
     @AppStorage("fitnessauto.weight.heightCm") private var heightText = ""
     @AppStorage("fitnessauto.weight.birthYear") private var birthYear = 0
     @AppStorage("fitnessauto.weight.birthMonth") private var birthMonth = 0
@@ -56,9 +58,28 @@ struct WeightView: View {
                 LabeledContent("体脂率", value: scale.reading?.hasImpedance == true ? "数据已收到，算法待解析" : "等待测量数据")
                 Text("BMI 根据体重和身高计算。体脂率的计算尚未验证，本版不显示估算值。")
                     .font(.footnote).foregroundStyle(.secondary)
-                Button(scale.saved ? "本次测量已保存" : "保存本次测量") { scale.save(heightCm: height) }
+                Button(scale.saved ? "本次测量已保存" : "保存本次测量") {
+                    inputFocused = false
+                    scale.save(heightCm: height)
+                    if autoHealth, let record = scale.records.first {
+                        Task { await health.save(record) }
+                    }
+                }
                     .disabled(!scale.canSave)
-                Text("记录保存在本机，目前不写入苹果健康。离开此页面或进入后台会断开体脂秤。")
+                Text("记录保存在本机；健康授权后可自动同步体重与 BMI。离开此页面或进入后台会断开体脂秤。")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section("苹果健康") {
+                Button(health.fullyAuthorized ? "已授权体重与 BMI" : "授权体重与 BMI") {
+                    inputFocused = false
+                    Task { await health.authorize() }
+                }.disabled(!health.available || health.busy || health.fullyAuthorized)
+                Toggle("测量完成后自动保存并同步", isOn: $autoHealth)
+                Text("授权后，收到最终测量会保存到本机并同步；BMI 使用本次保存的身高计算。体脂率等尚未解析的指标不会写入。")
+                    .font(.footnote).foregroundStyle(.secondary)
+                Text(health.status).font(.footnote).foregroundStyle(.secondary)
+                if health.busy { ProgressView("正在处理苹果健康…") }
+                Text("写入前检查相近记录并提示可能重复。检查依赖健康读取权限；建议只开启一个 APP 的健康同步。删除本机记录不会删除健康里的数据。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Section("体脂测量资料（实验）") {
@@ -111,6 +132,9 @@ struct WeightView: View {
                         }.monospacedDigit()
                         Text(record.date.formatted(date: .abbreviated, time: .shortened))
                             .font(.caption).foregroundStyle(.secondary)
+                        Button(health.savedText(record)) {
+                            Task { await health.save(record) }
+                        }.disabled(health.saved(record) || health.busy)
                     }
                 }.onDelete(perform: scale.delete)
             }
@@ -136,8 +160,28 @@ struct WeightView: View {
                 birthMonth = month
             }
         }
+        .alert(item: $health.duplicateReview) { review in
+            Alert(title: Text("可能已有同一次测量"),
+                  message: Text("苹果健康中发现时间和数值接近的记录，来源：\(review.sources)。是否仍然写入？"),
+                  primaryButton: .cancel(Text("取消")),
+                  secondaryButton: .default(Text("仍然写入")) {
+                    Task { await health.save(review.record, allowDuplicate: true) }
+                  })
+        }
+        .onAppear { health.refreshAuthorization() }
+        .onChange(of: scale.reading) { _, reading in
+            guard autoHealth, health.weightAuthorized || health.bmiAuthorized,
+                  reading?.stable == true, reading?.resistance1 != nil, scale.canSave else { return }
+            scale.save(heightCm: height)
+            if let record = scale.records.first {
+                Task { await health.save(record, requestPermission: false) }
+            }
+        }
         .onDisappear { scale.stop() }
-        .onChange(of: scenePhase) { _, phase in if phase == .background { scale.stop() } }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { scale.stop() }
+            if phase == .active { health.refreshAuthorization() }
+        }
     }
     private func profileInput(_ label: String, text: Binding<String>, unit: String,
                               keyboard: UIKeyboardType = .decimalPad) -> some View {

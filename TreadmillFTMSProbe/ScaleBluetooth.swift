@@ -17,6 +17,7 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
     private var timeout: Timer?
     private var initializationTimeout: Timer?
     private var lastReading: Date?
+    private var measurementDate: Date?
     private var acknowledgedFinal = false
     private var savedRecordID: UUID?
     private var profile: ScaleProfile?
@@ -44,7 +45,7 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
         self.profile = profile?.valid == true ? profile : nil
         compositionStatus = "未启用体脂测量"
         reportRequested = false; reportChunks.removeAll(); pendingWrites.removeAll()
-        reading = nil; saved = false; savedRecordID = nil; lastReading = nil; acknowledgedFinal = false
+        reading = nil; saved = false; savedRecordID = nil; lastReading = nil; measurementDate = nil; acknowledgedFinal = false
         scanIfReady()
     }
     func stop() {
@@ -121,6 +122,7 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
         guard error == nil else { log(error!.localizedDescription); return }
         if let index = ScaleProfile.reportChunkIndex(data), reportRequested {
             reportChunks.insert(index); log("收到初始化报告分片 \(index + 1)/5")
+            log("报告分片报文：" + data.map { String(format: "%02X", $0) }.joined(separator: " "))
             if reportChunks.count == 5 {
                 reportRequested = false; initializationTimeout?.invalidate()
                 compositionStatus = "初始化报告已接收，请离秤再裸脚站秤测量"
@@ -131,7 +133,8 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
         guard let value = ScaleReading.decode(data) else {
             log("未解析通知：" + data.map { String(format: "%02X", $0) }.joined(separator: " ")); return
         }
-        if !value.stable && reading?.stable == true { saved = false; savedRecordID = nil; acknowledgedFinal = false }
+        if !value.stable && reading?.stable == true { saved = false; savedRecordID = nil; acknowledgedFinal = false; measurementDate = nil }
+        if value.stable && measurementDate == nil { measurementDate = Date() }
         // Keep final impedance when repeated weight notifications arrive afterwards.
         let keepImpedance = value.stable && reading?.stable == true && reading?.kilograms == value.kilograms
         let merged = ScaleReading(kilograms: value.kilograms, stable: value.stable,
@@ -196,7 +199,7 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
     func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) { drainWrites() }
     func save(heightCm: Double?) {
         guard canSave, let reading else { status = "请等待稳定的新测量结果再保存"; return }
-        records.insert(WeightRecord(kilograms: reading.kilograms, heightCm: heightCm,
+        records.insert(WeightRecord(date: measurementDate ?? Date(), kilograms: reading.kilograms, heightCm: heightCm,
                                    resistance1: reading.resistance1, resistance2: reading.resistance2), at: 0)
         savedRecordID = records.first?.id
         saved = true; persist(); status = "本次测量已保存"
