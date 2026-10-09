@@ -228,22 +228,6 @@ struct WorkoutRecordsView: View {
             Section {
                 PageIntro(eyebrow: "YOUR PROGRESS", title: "每一次，都算数。", subtitle: "回顾运动记录，把进步留在苹果健康。")
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
-            Section("苹果健康") {
-                Text(recorder.status).font(.subheadline)
-                Button(recorder.healthAuthorized ? "已授权" : recorder.healthPartiallyAuthorized ? "补充健康授权" : "授权苹果健康") {
-                    Task { await recorder.authorize() }
-                }.disabled(recorder.saving || recorder.healthAuthorized)
-                if recorder.healthPartiallyAuthorized {
-                    Text("部分写入权限未开启，可在健康 APP 的应用权限中调整。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-                DisclosureGroup("同步与记录说明") {
-                Text("写入前检查已有运动，疑似重复时提示确认。需要允许读取运动记录；若未允许读取或其他 APP 稍后写入，仍可能重复。建议只让一个 APP 写入苹果健康。")
-                    .font(.footnote).foregroundStyle(.secondary)
-                Text("时长来自已确认运行的蓝牙观测；距离和热量仅使用跑步机标准运动数据。缺失字段不会猜测或写入。锁屏、断线会结束当前记录；训练继续时创建新记录。")
-                    .font(.footnote).foregroundStyle(.secondary)
-                }
-            }
             Section("本机运动记录") {
                 if recorder.records.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
