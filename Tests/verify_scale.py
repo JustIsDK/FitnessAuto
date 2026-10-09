@@ -27,6 +27,31 @@ assert(ack[2...18].reduce(0, { $0 + Int($1) }) & 255 == Int(ack[19]))
 let record = WeightRecord(kilograms: result.kilograms, heightCm: 178, resistance1: 447, resistance2: 406)
 let restored = try JSONDecoder().decode(WeightRecord.self, from: JSONEncoder().encode(record))
 assert(restored.id == record.id && restored.bmi == record.bmi)
+// Independently captured second measurement, not used to fit a body-fat formula.
+let final2 = packet("AC 29 02 00 01 B5 01 88 01 80 69 45 64 00 00 00 00 29 D6 13")
+let second = ScaleReading.decode(final2)!
+assert(second.kilograms == 83.3 && second.resistance1 == 437 && second.resistance2 == 392)
+let profile = ScaleProfile(heightCm: 178, age: 34, male: true, referenceKg: 83.45)
+let initialization = profile.initialization(at: Date(timeIntervalSince1970: Double(0x6AC8B8F7)))
+assert(initialization == [
+    packet("AC 27 08 6A C8 B8 F7 20 00 00 00 00 00 00 00 00 00 00 DF E8"),
+    packet("AC 27 01 00 01 B2 20 99 22 01 00 00 00 00 00 00 00 00 D1 61"),
+    packet("AC 27 6A C8 B8 F7 20 00 01 B2 20 99 22 01 13 88 03 00 D0 FE"),
+    packet("AC 27 06 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 DF E5")])
+let changed = ScaleProfile(heightCm: 175, age: 40, male: false, referenceKg: 70)
+let changedPackets = changed.initialization(at: Date(timeIntervalSince1970: 1234))
+assert(changedPackets.count == 4 && changedPackets != initialization)
+for packet in changedPackets {
+    let b = Array(packet)
+    assert(b.count == 20 && b[2...18].reduce(0, { $0 + Int($1) }) & 255 == Int(b[19]))
+}
+assert(ScaleProfile(heightCm: 178, age: 34, male: true, referenceKg: .nan).initialization().isEmpty)
+assert(profile.initialization(at: Date(timeIntervalSince1970: -1)).isEmpty)
+assert(ScaleProfile.closeReport == packet("AC 27 07 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 DF E6"))
+let chunk = packet("AC 29 06 04 89 0F BA F6 33 F0 AA 9D 00 00 00 00 00 00 DF 1B")
+assert(ScaleProfile.reportChunkIndex(chunk) == 4)
+var corrupt = chunk; corrupt[4] ^= 1
+assert(ScaleProfile.reportChunkIndex(corrupt) == nil)
 print("Scale protocol checks passed")
 '''
 with tempfile.TemporaryDirectory() as folder:
