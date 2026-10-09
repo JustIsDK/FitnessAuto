@@ -1,0 +1,14 @@
+{
+  "format": "fitnessauto.plan",
+  "version": 1,
+  "plans": [
+    {
+      "title": "3 分钟导入测试",
+      "steps": [
+        { "title": "热身", "durationSeconds": 60, "speedKmh": 1.0, "inclinePercent": 0 },
+        { "title": "小幅调节", "durationSeconds": 60, "speedKmh": 1.5, "inclinePercent": 1 },
+        { "title": "放松", "durationSeconds": 60, "speedKmh": 1.0, "inclinePercent": 0 }
+      ]
+    }
+  ]
+}

@@ -27,7 +27,7 @@ struct ContentView: View {
                 Section("训练计划") {
                     Picker("选择计划", selection: $selectedPlanID) {
                         ForEach(library.plans) { Text($0.title).tag($0.id) }
-                    }.disabled(bluetooth.workoutActive || bluetooth.workoutPaused)
+                    }.disabled(bluetooth.workoutBusy || bluetooth.workoutPaused)
                     HStack {
                         Label("\(displayPlan.duration / 60) 分钟", systemImage: "clock")
                         Spacer()
@@ -48,9 +48,13 @@ struct ContentView: View {
                         }
                     }
                     Text(bluetooth.workoutMessage).font(.subheadline)
-                    Toggle("已查看计划，并在面板上启动跑带", isOn: $workoutConfirmed)
-                        .disabled(bluetooth.workoutActive)
-                    if bluetooth.workoutActive {
+                    Toggle("已查看计划、检查安全夹，并准备自动启动", isOn: $workoutConfirmed)
+                        .disabled(bluetooth.workoutBusy)
+                    if bluetooth.workoutStarting {
+                        ProgressView("正在启动跑步机…")
+                    } else if bluetooth.workoutStopping {
+                        ProgressView("正在确认停机…")
+                    } else if bluetooth.workoutActive {
                         Button("暂停自动调节", systemImage: "pause.fill") { bluetooth.pauseWorkout() }
                     } else if bluetooth.workoutPaused {
                         Button("继续训练", systemImage: "play.fill") { bluetooth.resumeWorkout() }
@@ -61,8 +65,13 @@ struct ContentView: View {
                             bluetooth.startWorkout(selectedPlan)
                         }.disabled(!workoutConfirmed || !bluetooth.canStartWorkout)
                     }
-                    if bluetooth.workoutActive || bluetooth.workoutPaused {
-                        Button("结束自动调节", role: .destructive) { bluetooth.endWorkout() }
+                    if bluetooth.workoutActive || bluetooth.workoutPaused || bluetooth.workoutStarting {
+                        Button("结束计划并停止跑步机", role: .destructive) { bluetooth.endWorkout() }
+                    }
+                    if bluetooth.stopNeedsRetry || (!bluetooth.workoutBusy && !bluetooth.workoutPaused && bluetooth.liveSpeed != nil) {
+                        Button(bluetooth.stopNeedsRetry ? "重试停止跑步机" : "停止跑步机", role: .destructive) {
+                            bluetooth.endWorkout(reason: "已请求停止")
+                        }.disabled(!bluetooth.canStopTreadmill)
                     }
                     DisclosureGroup("完整阶段表") {
                         ForEach(displayPlan.steps) { step in
@@ -74,35 +83,35 @@ struct ContentView: View {
                     }
                 }
                 Section("运动记录") {
+                    Picker("运动类型", selection: $recorder.running) {
+                        Text("室内步行").tag(false)
+                        Text("室内跑步").tag(true)
+                    }
+                    Text("用于苹果健康的运动分类，可按本次运动调整。")
+                        .font(.footnote).foregroundStyle(.secondary)
                     if recorder.recording {
                         Label(recorder.waitingForMotion ? "等待跑步机启动" : "记录中 · \(clock(recorder.seconds))", systemImage: "record.circle")
                         Text(recorder.distanceMeters.map { String(format: "本次距离 %.2f km", $0 / 1000) } ?? "本次距离 —")
                         Text(recorder.energyKcal.map { String(format: "消耗热量 %.0f kcal", $0) } ?? "消耗热量 —")
-                        Button("结束记录（不停止跑带）") { recorder.finish() }
+                        Button(recorder.waitingForMotion ? "取消等待" : "结束记录（不停止跑带）") { bluetooth.finishRecording() }
                     } else {
-                        Picker("运动类型", selection: $recorder.running) {
-                            Text("室内步行").tag(false)
-                            Text("室内跑步").tag(true)
-                        }
-                        Text("用于苹果健康的运动分类，请按本次运动选择。")
-                            .font(.footnote).foregroundStyle(.secondary)
                         Button { bluetooth.startRecording() } label: {
                             Text("开始记录").frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(!bluetooth.canStartRecording)
-                        Text(!bluetooth.connected ? "连接跑步机后可开始记录。"
+                        Text(!bluetooth.connected ? "连接跑步机后，启动跑带会自动记录。"
                              : !bluetooth.canStartRecording ? "正在准备连接，请稍候。"
-                             : "不使用训练计划时，点击开始记录；若跑带未启动，将等待启动后计时。")
+                             : "检测到跑步机运行时自动记录。手动结束记录后，可点击开始记录恢复。")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     Text(bluetooth.telemetryText).font(.caption).foregroundStyle(.secondary)
                     NavigationLink("运动记录与苹果健康", destination: WorkoutRecordsView())
-                    Text("开始训练会同时记录。记录结束后，可选择写入苹果健康。")
+                    Text("不执行计划也会记录面板启动的运动。停止后保存记录，可选择写入苹果健康。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Section {
-                    Text("暂停和结束只停止自动调节，跑带仍会运行。请使用面板停止键停机。训练期间保持 APP 在前台；方案二放松阶段保留坡度 15%。")
+                    Text("开始计划会启动跑步机；结束或完成计划会发送停止指令。暂停仅暂停自动调节。启停以设备状态确认为准，异常时请使用实体停止键。训练期间保持 APP 在前台；方案二放松阶段保留坡度 15%。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
@@ -122,7 +131,7 @@ struct ContentView: View {
             .onChange(of: bluetooth.connected) { _, connected in
                 if !connected { workoutConfirmed = false }
             }
-            .onChange(of: bluetooth.workoutActive) { _, active in UIApplication.shared.isIdleTimerDisabled = active }
+            .onChange(of: bluetooth.workoutBusy) { _, busy in UIApplication.shared.isIdleTimerDisabled = busy }
         }
     }
     private func metric(_ title: String, value: String, unit: String) -> some View {
@@ -186,7 +195,7 @@ struct DiagnosticsView: View {
                         .font(.footnote)
 
                     Toggle("已确认跑带无人，并已在面板上手动启动", isOn: $bluetooth.readyForMotion)
-                        .disabled(bluetooth.workoutActive)
+                        .disabled(bluetooth.workoutBusy)
 
                     Button("② 目标速度 1.0 km/h") { bluetooth.setSpeed(1.0) }
                         .disabled(!bluetooth.readyForMotion || !bluetooth.canSendSpeed)
@@ -197,7 +206,7 @@ struct DiagnosticsView: View {
                     Button("目标坡度 0%") { bluetooth.setIncline(0) }
                         .disabled(!bluetooth.readyForMotion || !bluetooth.canSendIncline)
 
-                    Text("本验证版不发送启动指令。先在跑步机面板上以最低速度启动，确认周围无人站上跑带后再点调速或调坡。实体停止键和安全夹始终优先。")
+                    Text("本页手动调速测试需要先在面板上以最低速度启动跑带，再测试调速或调坡。首页的开始计划支持自动启动。实体停止键和安全夹始终优先。")
                         .font(.footnote)
                 }
 

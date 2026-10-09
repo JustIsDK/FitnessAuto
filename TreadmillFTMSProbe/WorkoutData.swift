@@ -1,5 +1,32 @@
 import Foundation
 
+enum MerachMotionCommand {
+    // Start/stop frames observed in the official APP capture on this device.
+    static let start: [UInt8] = [0x02, 0x53, 0x09, 0x5A, 0x03]
+    static let stop: [UInt8] = [0x02, 0x53, 0x03, 0x50, 0x03]
+}
+
+struct WorkoutMotionTransition {
+    enum Kind { case start, stop }
+    let id = UUID()
+    let kind: Kind
+    let deadline: Double
+    var writeConfirmed = false
+    private var matchingReports = 0
+
+    init(kind: Kind, deadline: Double) {
+        self.kind = kind
+        self.deadline = deadline
+    }
+    mutating func observe(machineState: UInt8) -> Bool {
+        guard writeConfirmed else { return false }
+        if kind == .start ? machineState == 0x03 : machineState == 0x0A { matchingReports += 1 }
+        else { matchingReports = 0 }
+        return matchingReports >= 2
+    }
+    func timedOut(at uptime: Double) -> Bool { uptime >= deadline }
+}
+
 /// Bluetooth SIG FTMS Treadmill Data (2ACD). Private counters are deliberately
 /// not used until their units have been verified against this treadmill.
 struct TreadmillMetrics {
@@ -68,6 +95,15 @@ struct WorkoutRecord: Identifiable, Codable {
     var duration: Double { intervals.reduce(0) { $0 + $1.duration } }
     var start: Date? { intervals.first?.start }
     var end: Date? { intervals.last?.end }
+
+    func mayDuplicate(start otherStart: Date, end otherEnd: Date) -> Bool {
+        guard duration > 0, otherEnd > otherStart else { return false }
+        let overlap = intervals.reduce(0.0) { result, interval in
+            result + max(0, min(interval.end, otherEnd).timeIntervalSince(max(interval.start, otherStart)))
+        }
+        // This is a review trigger, not a claim that the workouts are identical.
+        return overlap >= min(30, max(1, duration / 2))
+    }
 }
 
 /// Only counts intervals with successive confirmed running status <= 3 seconds

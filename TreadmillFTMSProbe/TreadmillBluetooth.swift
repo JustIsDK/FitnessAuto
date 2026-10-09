@@ -88,14 +88,20 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     var canStartRecording: Bool {
-        appIsActive && connected && vendorAuthorized && vendorSubscribed && !recorder.recording
+        appIsActive && connected && vendorAuthorized && vendorSubscribed && !recorder.recording && !workoutStopping
     }
 
     func startRecording() {
         guard canStartRecording else { return }
+        autoRecordingSuppressed = false
         enableTelemetry()
         let runningNow = vendorRunning && lastVendorStatus.map({ Date().timeIntervalSince($0) < 3 }) == true
         recorder.start(title: workoutPlan?.title ?? "跑步机训练", waitingForMotion: !runningNow)
+    }
+
+    func finishRecording() {
+        autoRecordingSuppressed = true
+        recorder.finish(reason: recorder.waitingForMotion ? "已取消等待" : "记录已结束；本次运行不再自动创建记录，可点击开始记录恢复")
     }
 
     @Published private(set) var devices: [DiscoveredTreadmill] = []
@@ -122,6 +128,16 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     @Published var readyForMotion = false
     @Published private(set) var workoutActive = false
     @Published private(set) var workoutPaused = false
+    @Published private(set) var workoutMotion: WorkoutMotionTransition?
+    @Published private(set) var stopNeedsRetry = false
+    var workoutStarting: Bool { workoutMotion?.kind == .start }
+    var workoutStopping: Bool { workoutMotion?.kind == .stop }
+    var workoutBusy: Bool { workoutActive || workoutMotion != nil }
+    private var vendorMotionWriteID: UUID?
+    private var stopReason = "计划已结束"
+    private var vendorMachineState: UInt8?
+    private var lastVendorReportUptime: Double?
+    private var autoRecordingSuppressed = false
     @Published private(set) var workoutElapsed = 0
     @Published private(set) var workoutMessage = "选择计划，预览后开始"
     @Published private(set) var liveSpeed: Double?
@@ -152,34 +168,97 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private var workoutConfirmationDeadline: TimeInterval?
 
     var canStartWorkout: Bool {
-        canSendVendorMotion && !workoutActive &&
-            lastVendorStatus.map { Date().timeIntervalSince($0) < 3 } == true
+        appIsActive && connected && vendorAuthorized && vendorSubscribed && readyForMotion &&
+            !workoutActive && workoutMotion == nil &&
+            lastVendorReportUptime.map { ProcessInfo.processInfo.systemUptime - $0 < 3 } == true &&
+            (vendorMachineState == 0x0A || vendorMachineState == 0x03)
     }
 
+    var canStopTreadmill: Bool { connected && vendorAuthorized && vendorSubscribed && !workoutStopping }
+
     func startWorkout(_ plan: WorkoutPlan) {
-        guard plan.validationError == nil, canStartWorkout, plan.steps.allSatisfy({
-            speedRange?.contains($0.speed) == true && inclineRange?.contains(Double($0.incline)) == true
-        }) else {
-            workoutMessage = "请确认跑带已手动启动、状态有效，且计划在设备范围内"
+        guard !workoutPaused, plan.validationError == nil, canStartWorkout,
+              plan.steps.allSatisfy({ speedRange?.contains($0.speed) == true &&
+                  inclineRange?.contains(Double($0.incline)) == true }) else {
+            workoutMessage = "请确认启动条件、设备状态和计划范围；暂停的计划请先继续或结束"
             return
         }
-        if vendorWritePending {
-            queuedVendorAction = { [weak self] in self?.startWorkout(plan) }
-            return
-        }
+        queuedVendorAction = nil
         workoutPlan = plan
         workoutAccumulated = 0
         workoutElapsed = 0
         workoutStepIndex = nil
+        stopNeedsRetry = false
+        saveCheckpoint()
+        startOrContinueWorkout()
+    }
+
+    private func startOrContinueWorkout() {
+        if vendorRunning { beginWorkoutTiming() }
+        else {
+            workoutPaused = false
+            requestMotion(.start)
+            workoutMessage = "正在启动跑步机；等待倒计时和运行状态确认"
+        }
+    }
+
+    private func beginWorkoutTiming() {
+        guard appIsActive, readyForMotion, connected, vendorAuthorized, vendorRunning, workoutPlan != nil else {
+            endWorkout(reason: "启动条件变化，已取消训练")
+            return
+        }
+        workoutMotion = nil
         workoutActive = true
         workoutPaused = false
+        workoutStepIndex = nil
         workoutStartedAt = ProcessInfo.processInfo.systemUptime
         startRecording()
-        saveCheckpoint()
         tickWorkout()
     }
 
+    private func requestMotion(_ kind: WorkoutMotionTransition.Kind) {
+        let transition = WorkoutMotionTransition(kind: kind, deadline: ProcessInfo.processInfo.systemUptime + 15)
+        workoutMotion = transition
+        queuedVendorAction = nil
+        sendMotionWhenReady(transition)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
+            guard let self, let pending = self.workoutMotion, pending.id == transition.id,
+                  pending.timedOut(at: ProcessInfo.processInfo.systemUptime) else { return }
+            if kind == .start {
+                self.endWorkout(reason: "启动未确认，已取消计划")
+            } else {
+                self.workoutMotion = nil
+                self.stopNeedsRetry = true
+                self.recorder.finish(reason: "停止未确认；已保存观测到的运动数据")
+                self.workoutMessage = "\(self.stopReason)；未确认停机，请立即使用实体停止键"
+                self.log(self.workoutMessage)
+            }
+        }
+    }
+
+    private func sendMotionWhenReady(_ transition: WorkoutMotionTransition) {
+        guard workoutMotion?.id == transition.id else { return }
+        guard connected, vendorAuthorized, vendorSubscribed,
+              transition.kind == .stop || (appIsActive && readyForMotion) else {
+            if transition.kind == .start { endWorkout(reason: "启动条件失效，已取消计划") }
+            else { workoutMotion = nil; stopNeedsRetry = true; workoutMessage = "\(stopReason)；停止指令无法发送，请使用实体停止键" }
+            return
+        }
+        if vendorWritePending {
+            // A stop replaces all queued adjustment/start actions.
+            queuedVendorAction = { [weak self] in self?.sendMotionWhenReady(transition) }
+            return
+        }
+        vendorMotionWriteID = transition.id
+        writeVendor(transition.kind == .start ? MerachMotionCommand.start : MerachMotionCommand.stop,
+                    label: transition.kind == .start ? "启动跑步机" : "停止跑步机")
+    }
+
     func pauseWorkout(_ reason: String = "计时已暂停；跑带继续运行，请用面板停止键停机") {
+        if workoutStarting {
+            endWorkout(reason: "启动过程已取消")
+            return
+        }
         guard workoutActive else { return }
         if let started = workoutStartedAt {
             workoutAccumulated += ProcessInfo.processInfo.systemUptime - started
@@ -197,27 +276,32 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     func resumeWorkout() {
-        guard workoutPaused, canStartWorkout else { return }
-        if vendorWritePending {
-            queuedVendorAction = { [weak self] in self?.resumeWorkout() }
-            return
-        }
-        workoutActive = true
-        workoutPaused = false
-        workoutStepIndex = nil
-        workoutStartedAt = ProcessInfo.processInfo.systemUptime
-        startRecording()
-        tickWorkout()
+        guard workoutPaused, canStartWorkout, let plan = workoutPlan,
+              plan.validationError == nil, plan.steps.allSatisfy({ speedRange?.contains($0.speed) == true &&
+                  inclineRange?.contains(Double($0.incline)) == true }) else { return }
+        startOrContinueWorkout()
     }
 
-    func endWorkout() {
-        recorder.finish()
+    func endWorkout(reason: String = "计划已结束") {
         queuedVendorAction = nil
+        // Clear a pending start before pausing, to avoid recursive cancellation.
+        workoutMotion = nil
         pauseWorkout()
         workoutPaused = false
         workoutPlan = nil
+        workoutExpectedTarget = nil
+        workoutConfirmationDeadline = nil
         saveCheckpoint()
-        workoutMessage = "自动调节已结束；请用面板停止键停机"
+        stopReason = reason
+        stopNeedsRetry = false
+        if connected && vendorAuthorized && vendorSubscribed {
+            requestMotion(.stop)
+            workoutMessage = "\(reason)；正在停止跑步机，等待状态确认"
+        } else {
+            stopNeedsRetry = true
+            recorder.finish(reason: "连接不可用；已保存有效运动记录")
+            workoutMessage = "\(reason)；连接不可用，请使用实体停止键停机"
+        }
     }
 
     private func tickWorkout() {
@@ -234,9 +318,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         }
         let elapsed = Int(workoutAccumulated + now - started)
         guard let index = plan.stepIndex(at: elapsed) else {
-            endWorkout()
             workoutElapsed = plan.duration
-            workoutMessage = "计划完成；请用面板停止键停机"
+            endWorkout(reason: "计划完成")
             return
         }
         workoutElapsed = elapsed
@@ -317,7 +400,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     var canSendVendorMotion: Bool {
-        appIsActive && canRefreshVendorStatus && vendorAuthorized && vendorRunning && vendorSpeedTenths != nil &&
+        appIsActive && canRefreshVendorStatus && workoutMotion == nil && vendorAuthorized && vendorRunning && vendorSpeedTenths != nil &&
             vendorIncline != nil && readyForMotion
     }
 
@@ -345,8 +428,9 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     func setAppActive(_ active: Bool, background: Bool = false) {
         appIsActive = active
         if !active {
+            if !workoutStopping { queuedVendorAction = nil }
+            // Cancelling a pending start may enqueue a stop; retain that stop.
             pauseWorkout(background ? "锁屏或进入后台，进度已保存；请检查跑步机面板" : "系统打断了 APP，计划已暂停；回到 APP 后可手动继续")
-            queuedVendorAction = nil
         }
         if background {
             pauseWorkout("锁屏或进入后台，进度已保存；跑带仍会运行，请检查面板")
@@ -587,6 +671,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
             lastVendorResponseUptime = ProcessInfo.processInfo.systemUptime
             // Short acknowledgements are not full state reports.
             guard bytes.count >= 17 else { return }
+            vendorMachineState = bytes[2]
+            lastVendorReportUptime = ProcessInfo.processInfo.systemUptime
             vendorRunning = bytes[2] == 0x03
             if vendorRunning {
                 let speed = Double(bytes[3]) / 10
@@ -595,7 +681,10 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
                 vendorSpeedTenths = bytes[3]
                 vendorIncline = bytes[4]
                 lastVendorStatus = Date()
-                if appIsActive { recorder.observeRunning() }
+                if appIsActive {
+                    if !recorder.recording && !autoRecordingSuppressed && !workoutStopping { startRecording() }
+                    recorder.observeRunning()
+                }
                 if let expected = workoutExpectedTarget,
                    bytes[3] == expected.speed, bytes[4] == expected.incline {
                     workoutExpectedTarget = nil
@@ -606,17 +695,34 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
                                   Double(bytes[3]) / 10, bytes[4])
                 if vendorStatusText != text { vendorStatusText = text }
             } else {
+                if bytes[2] == 0x0A { autoRecordingSuppressed = false }
                 liveSpeed = nil
                 liveIncline = nil
                 vendorSpeedTenths = nil
-                if !recorder.waitingForMotion {
+                if !recorder.waitingForMotion && !workoutStarting {
                     recorder.finish(reason: "跑步机已停止或倒计时；记录已保存在本机")
                 }
-                pauseWorkout("跑步机已停止或处于倒计时，计划已暂停")
+                if !workoutStarting { pauseWorkout("跑步机已停止或处于倒计时，计划已暂停") }
                 vendorIncline = nil
                 lastVendorStatus = nil
-                let text = String(format: "未运行（状态 0x%02X）", bytes[2])
+                let text = bytes[2] == 0x0A ? "跑步机已停止" : bytes[2] == 0x02 ? "跑步机启动倒计时" : String(format: "未运行（状态 0x%02X）", bytes[2])
                 if vendorStatusText != text { vendorStatusText = text }
+            }
+            if var transition = workoutMotion {
+                let confirmed = transition.observe(machineState: bytes[2])
+                workoutMotion = transition
+                if confirmed {
+                    workoutMotion = nil
+                    if transition.kind == .start {
+                        log("设备运行状态已确认，开始计划计时")
+                        beginWorkoutTiming()
+                    } else {
+                        stopNeedsRetry = false
+                        recorder.finish()
+                        workoutMessage = "\(stopReason)；设备已确认停止"
+                        log(workoutMessage)
+                    }
+                }
             }
         } else if bytes[1] == 0x53 {
             log("麦瑞克设置命令已回显；请核对面板实际变化")
@@ -678,6 +784,18 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     private func resetConnection() {
+        let motionWasPending = workoutMotion != nil
+        workoutMotion = nil
+        vendorMotionWriteID = nil
+        vendorMachineState = nil
+        lastVendorReportUptime = nil
+        autoRecordingSuppressed = false
+        if motionWasPending {
+            workoutPaused = workoutPlan != nil
+            stopNeedsRetry = true
+            workoutMessage = "启动或停机过程中连接中断，无法确认停机；请使用实体停止键"
+            saveCheckpoint()
+        }
         recorder.finish(reason: "连接结束；已保存观测到的运动数据，重连后可重新记录")
         treadmillDataCharacteristic = nil
         deviceDistanceMeters = nil
@@ -1020,6 +1138,15 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             vendorWritePending = false
             if let error {
                 queuedVendorAction = nil
+                let failedMotion = workoutMotion?.kind
+                workoutMotion = nil
+                vendorMotionWriteID = nil
+                if failedMotion != nil {
+                    workoutPaused = workoutPlan != nil
+                    stopNeedsRetry = true
+                    workoutMessage = "启动或停止写入失败，无法确认停机；请使用实体停止键"
+                    saveCheckpoint()
+                }
                 pauseWorkout("设备写入失败，计划已暂停")
                 vendorTargetPending = false
                 vendorInitialQueryPending = false
@@ -1027,6 +1154,13 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
                 vendorAuthorized = false
                 log("麦瑞克写入失败：\(errorDetails(error))")
                 return
+            }
+            if let motionID = vendorMotionWriteID {
+                vendorMotionWriteID = nil
+                if workoutMotion?.id == motionID {
+                    workoutMotion?.writeConfirmed = true
+                    log("启停写入已确认；等待两次设备状态确认")
+                }
             }
             if vendorTargetPending {
                 vendorTargetPending = false

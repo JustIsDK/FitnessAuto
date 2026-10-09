@@ -1,6 +1,12 @@
 import SwiftUI
 import HealthKit
 
+struct HealthDuplicateReview: Identifiable {
+    let record: WorkoutRecord
+    let sources: String
+    var id: UUID { record.id }
+}
+
 final class WorkoutRecorder: ObservableObject {
     @Published private(set) var records: [WorkoutRecord] = []
     @Published private(set) var recording = false
@@ -8,11 +14,14 @@ final class WorkoutRecorder: ObservableObject {
     @Published private(set) var seconds = 0
     @Published private(set) var distanceMeters: Double?
     @Published private(set) var energyKcal: Double?
-    @Published var running = false
-    @Published private(set) var status = "运动记录保存在本机；写入苹果健康需要单独授权"
+    @Published var running = false {
+        didSet { accumulator?.record.running = running }
+    }
+    @Published private(set) var status = "运动记录保存在本机，可选择写入苹果健康"
     @Published private(set) var saving = false
     @Published private(set) var healthAuthorized = false
     @Published private(set) var healthPartiallyAuthorized = false
+    @Published var duplicateReview: HealthDuplicateReview?
     private var accumulator: WorkoutAccumulator?
     private var lastPersistedSecond = -1
     private let health = HKHealthStore()
@@ -114,7 +123,7 @@ final class WorkoutRecorder: ObservableObject {
         saving = true
         defer { refreshHealthAuthorization(); saving = false }
         do {
-            try await health.requestAuthorization(toShare: shareTypes, read: [])
+            try await health.requestAuthorization(toShare: shareTypes, read: [HKObjectType.workoutType()])
             refreshHealthAuthorization()
             status = healthAuthorized ? "已授权苹果健康；结束后可选择写入"
                 : healthPartiallyAuthorized ? "部分权限已授权，请在健康 APP 中开启其余写入权限"
@@ -122,19 +131,51 @@ final class WorkoutRecorder: ObservableObject {
         } catch { status = "健康授权失败：\(error.localizedDescription)" }
     }
 
-    @MainActor func saveToHealth(_ record: WorkoutRecord) async {
+    private func overlappingWorkouts(start: Date, end: Date) async throws -> [HKWorkout] {
+        try await withCheckedThrowingContinuation { continuation in
+            let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+            let query = HKSampleQuery(sampleType: HKObjectType.workoutType(), predicate: predicate,
+                                      limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: samples as? [HKWorkout] ?? []) }
+            }
+            health.execute(query)
+        }
+    }
+
+    @MainActor func saveToHealth(_ record: WorkoutRecord, allowDuplicate: Bool = false) async {
         guard !saving, !record.healthSaved, let start = record.start, let end = record.end, end > start else { return }
         guard HKHealthStore.isHealthDataAvailable() else { status = "此设备不支持苹果健康"; return }
         saving = true
         defer { refreshHealthAuthorization(); saving = false }
         do {
-            try await health.requestAuthorization(toShare: shareTypes, read: [])
+            try await health.requestAuthorization(toShare: shareTypes, read: [HKObjectType.workoutType()])
             var needed: [HKSampleType] = [HKObjectType.workoutType()]
             if record.distanceMeters != nil { needed.append(distanceType) }
             if record.energyKcal != nil { needed.append(energyType) }
             guard needed.allSatisfy({ health.authorizationStatus(for: $0) == .sharingAuthorized }) else {
                 status = "未获得所需写入权限。请在健康 APP 的应用权限中允许运动、距离和热量后重试"
                 return
+            }
+            let syncID = "FitnessAuto.\(record.id.uuidString)"
+            if !allowDuplicate {
+                let existing = try await overlappingWorkouts(start: start, end: end)
+                if existing.contains(where: { $0.metadata?[HKMetadataKeySyncIdentifier] as? String == syncID }) {
+                    if let index = records.firstIndex(where: { $0.id == record.id }) { records[index].healthSaved = true }
+                    status = "这条记录已存在于苹果健康，不再重复写入"
+                    _ = persist()
+                    return
+                }
+                let candidates = existing.filter {
+                    [.walking, .running, .hiking].contains($0.workoutActivityType) &&
+                    record.mayDuplicate(start: $0.startDate, end: $0.endDate)
+                }
+                if !candidates.isEmpty {
+                    let sources = Set(candidates.map { $0.sourceRevision.source.name }).sorted().joined(separator: "、")
+                    duplicateReview = HealthDuplicateReview(record: record, sources: sources)
+                    status = "发现时间重叠的运动记录，尚未写入；请确认是否重复"
+                    return
+                }
             }
             let configuration = HKWorkoutConfiguration()
             configuration.activityType = record.running ? .running : .walking
@@ -146,7 +187,7 @@ final class WorkoutRecorder: ObservableObject {
             try await builder.beginCollection(at: start)
             try await builder.addMetadata([
                 HKMetadataKeyIndoorWorkout: true,
-                HKMetadataKeySyncIdentifier: "FitnessAuto.\(record.id.uuidString)",
+                HKMetadataKeySyncIdentifier: syncID,
                 HKMetadataKeySyncVersion: 1,
                 "FitnessAutoPlan": record.title,
                 "FitnessAutoDurationSource": "Confirmed running BLE observations",
@@ -193,6 +234,8 @@ struct WorkoutRecordsView: View {
                     Text("部分写入权限未开启，可在健康 APP 的应用权限中调整。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                Text("写入前检查已有运动，疑似重复时提示确认。需要允许读取运动记录；若未允许读取或其他 APP 稍后写入，仍可能重复。建议只让一个 APP 写入苹果健康。")
+                    .font(.footnote).foregroundStyle(.secondary)
                 Text("时长来自已确认运行的蓝牙观测；距离和热量仅使用跑步机标准运动数据。缺失字段不会猜测或写入。锁屏、断线会结束当前记录；训练继续时创建新记录。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
@@ -217,6 +260,14 @@ struct WorkoutRecordsView: View {
             .onAppear { recorder.refreshHealthAuthorization() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { recorder.refreshHealthAuthorization() }
+            }
+            .alert(item: $recorder.duplicateReview) { review in
+                Alert(title: Text("可能是同一段运动"),
+                      message: Text("苹果健康中已有来自 \(review.sources) 的重叠运动记录。若是同一段运动，请取消写入，本机记录会保留。"),
+                      primaryButton: .cancel(Text("取消写入")),
+                      secondaryButton: .default(Text("仍然写入")) {
+                          Task { await recorder.saveToHealth(review.record, allowDuplicate: true) }
+                      })
             }
     }
 }

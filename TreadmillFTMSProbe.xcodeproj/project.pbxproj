@@ -14,6 +14,7 @@
 		A00000000000000000000015 = {isa = PBXBuildFile; fileRef = A00000000000000000000025; };
 		A00000000000000000000016 = {isa = PBXBuildFile; fileRef = A00000000000000000000026; };
 		A00000000000000000000017 = {isa = PBXBuildFile; fileRef = A00000000000000000000027; };
+		A00000000000000000000018 = {isa = PBXBuildFile; fileRef = A00000000000000000000028; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +26,7 @@
 		A00000000000000000000025 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLibrary.swift; sourceTree = "<group>"; };
 		A00000000000000000000026 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutData.swift; sourceTree = "<group>"; };
 		A00000000000000000000027 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutRecorder.swift; sourceTree = "<group>"; };
+		A00000000000000000000028 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanImport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +56,7 @@
 				A00000000000000000000023 /* TreadmillBluetooth.swift */,
 				A00000000000000000000024 /* Assets.xcassets */,
 				A00000000000000000000025,
+				A00000000000000000000028,
 				A00000000000000000000027,
 				A00000000000000000000026,
 			);
@@ -141,6 +144,7 @@
 				A00000000000000000000012 /* ContentView.swift in Sources */,
 				A00000000000000000000013 /* TreadmillBluetooth.swift in Sources */,
 				A00000000000000000000015,
+				A00000000000000000000018,
 				A00000000000000000000017,
 				A00000000000000000000016,
 			);
@@ -162,6 +166,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
 				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取已有运动记录，在写入前检查同一时间段是否已被其他 APP 记录。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将你选择的跑步机运动记录、距离和热量写入苹果健康。";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机并测试标准蓝牙速度和坡度控制。";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -191,6 +196,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
 				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取已有运动记录，在写入前检查同一时间段是否已被其他 APP 记录。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将你选择的跑步机运动记录、距离和热量写入苹果健康。";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机并测试标准蓝牙速度和坡度控制。";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;

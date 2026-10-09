@@ -1,8 +1,10 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 final class PlanLibrary: ObservableObject {
     @Published private(set) var custom: [WorkoutPlan] = []
     @Published var error: String?
+    @Published var importMessage: String?
     var plans: [WorkoutPlan] { WorkoutPlan.presets + custom }
     private let url = URL.applicationSupportDirectory.appending(path: "FitnessAuto/plans.json")
 
@@ -29,6 +31,21 @@ final class PlanLibrary: ObservableObject {
         catch { self.error = "删除失败：\(error.localizedDescription)" }
     }
 
+    func importFile(_ file: URL) {
+        let access = file.startAccessingSecurityScopedResource()
+        defer { if access { file.stopAccessingSecurityScopedResource() } }
+        do {
+            if let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > 1_048_576 {
+                throw PlanImportError(message: "文件不能超过 1 MB")
+            }
+            let firstID = max(Int(Date().timeIntervalSince1970 * 1000), (custom.map(\.id).max() ?? 2) + 1)
+            let imported = try PlanImportDocument.decode(Data(contentsOf: file), firstID: firstID)
+            // Validate the entire batch before writing; existing plans are retained.
+            try persist(custom + imported)
+            importMessage = "已导入 \(imported.count) 套计划，可在首页选择"
+        } catch { self.error = "导入失败：\(error.localizedDescription)" }
+    }
+
     private func persist(_ plans: [WorkoutPlan]) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try JSONEncoder().encode(plans).write(to: url, options: .atomic)
@@ -46,8 +63,15 @@ struct PlanLibraryView: View {
     @EnvironmentObject private var library: PlanLibrary
     @EnvironmentObject private var bluetooth: TreadmillBluetooth
     @State private var draft: WorkoutPlan?
+    @State private var importing = false
     var body: some View {
         List {
+            Section("导入") {
+                Button("导入计划", systemImage: "square.and.arrow.down") { importing = true }
+                Text("选择 JSON 计划文件，包含计划名称和各阶段的时长、速度、坡度。")
+                    .font(.footnote).foregroundStyle(.secondary)
+                if let message = library.importMessage { Text(message).font(.subheadline).foregroundStyle(.green) }
+            }
             Section("内置计划 · 可复制后修改") {
                 ForEach(WorkoutPlan.presets) { plan in
                     Button { draft = library.draft(from: plan) } label: {
@@ -70,9 +94,15 @@ struct PlanLibraryView: View {
                 Button("新建计划", systemImage: "plus") { draft = library.draft() }
             }
         }
-        .disabled(bluetooth.workoutActive || bluetooth.workoutPaused)
+        .disabled(bluetooth.workoutBusy || bluetooth.workoutPaused)
         .navigationTitle("计划库")
         .sheet(item: $draft) { plan in PlanEditor(plan: plan).environmentObject(library) }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
+            switch result {
+            case .success(let file): library.importFile(file)
+            case .failure(let error): library.error = "无法打开文件：\(error.localizedDescription)"
+            }
+        }
         .alert("计划保存", isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
             Button("知道了") { library.error = nil }
         } message: { Text(library.error ?? "") }

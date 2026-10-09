@@ -7,6 +7,7 @@ root = pathlib.Path(__file__).resolve().parents[1]
 bluetooth = (root / "TreadmillFTMSProbe/TreadmillBluetooth.swift").read_text()
 models = bluetooth[bluetooth.index("struct WorkoutStep:"):bluetooth.index("final class TreadmillBluetooth:")]
 data = (root / "TreadmillFTMSProbe/WorkoutData.swift").read_text()
+importer = (root / "TreadmillFTMSProbe/PlanImport.swift").read_text()
 checks = r'''
 func u16(_ n: Int) -> [UInt8] { [UInt8(n & 255), UInt8((n >> 8) & 255)] }
 // All optional fields before distance, energy and elapsed exercise offsets.
@@ -60,9 +61,63 @@ plan = WorkoutPlan.presets[0]; plan.steps[0].incline = 26; assert(plan.validatio
 plan = WorkoutPlan.presets[0]; plan.steps[1].start = 100; assert(plan.validationError != nil)
 plan = WorkoutPlan.presets[0]; plan.steps[1].id = 0; assert(plan.validationError != nil)
 plan = WorkoutPlan.presets[0]; plan.title = " "; assert(plan.validationError != nil)
-print("Passed: FTMS offsets/truncation/sentinels, observed duration, gaps, counter resets, clock changes, plan validation and Codable round trips.")
+
+assert(MerachMotionCommand.start == [2, 0x53, 9, 0x5A, 3])
+assert(MerachMotionCommand.stop == [2, 0x53, 3, 0x50, 3])
+for frame in [MerachMotionCommand.start, MerachMotionCommand.stop] {
+    assert(frame[1..<(frame.count - 2)].reduce(UInt8(0), ^) == frame[frame.count - 2])
+}
+var starting = WorkoutMotionTransition(kind: .start, deadline: 15)
+assert(!starting.observe(machineState: 3)) // Before write confirmation.
+starting.writeConfirmed = true
+assert(!starting.observe(machineState: 2)) // Countdown doesn't start timing.
+assert(!starting.observe(machineState: 3))
+assert(starting.observe(machineState: 3))
+assert(!starting.timedOut(at: 14.99) && starting.timedOut(at: 15))
+var stopping = WorkoutMotionTransition(kind: .stop, deadline: 15)
+stopping.writeConfirmed = true
+assert(!stopping.observe(machineState: 2)) // Countdown isn't stopped.
+assert(!stopping.observe(machineState: 3))
+assert(!stopping.observe(machineState: 0x0A))
+assert(!stopping.observe(machineState: 3)) // Intervening motion resets confirmation.
+assert(!stopping.observe(machineState: 0x0A))
+assert(stopping.observe(machineState: 0x0A))
+assert(starting.id != stopping.id)
+let segment = WorkoutRecord(title: "duplicates", running: false,
+    intervals: [RecordedInterval(start: start, end: start.addingTimeInterval(60), duration: 60),
+                RecordedInterval(start: start.addingTimeInterval(120), end: start.addingTimeInterval(180), duration: 60)])
+assert(segment.mayDuplicate(start: start, end: start.addingTimeInterval(180)))
+assert(!segment.mayDuplicate(start: start.addingTimeInterval(60), end: start.addingTimeInterval(120))) // Gap only.
+assert(!segment.mayDuplicate(start: start.addingTimeInterval(180), end: start.addingTimeInterval(240)))
+assert(!segment.mayDuplicate(start: start, end: start.addingTimeInterval(10)))
+let fixture = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
+let imported = try PlanImportDocument.decode(fixture, firstID: 10)
+assert(imported.count == 1 && imported[0].duration == 180 && imported[0].id == 10)
+assert(imported[0].steps.map(\.start) == [0, 60, 120])
+assert(imported[0].steps.map(\.incline) == [0, 1, 0])
+var document = try JSONSerialization.jsonObject(with: fixture) as! [String: Any]
+func rejected(_ object: [String: Any]) -> Bool {
+    do { _ = try PlanImportDocument.decode(JSONSerialization.data(withJSONObject: object), firstID: 10); return false }
+    catch { return true }
+}
+var badVersion = document; badVersion["version"] = 2; assert(rejected(badVersion))
+var badFormat = document; badFormat["format"] = "csv"; assert(rejected(badFormat))
+var batch = document["plans"] as! [[String: Any]]
+var invalid = batch[0]
+var badSteps = invalid["steps"] as! [[String: Any]]
+badSteps[0]["durationSeconds"] = 0
+invalid["steps"] = badSteps
+batch.append(invalid); document["plans"] = batch; assert(rejected(document))
+badSteps[0]["durationSeconds"] = "60"; invalid["steps"] = badSteps; document["plans"] = [invalid]; assert(rejected(document))
+badSteps[0]["durationSeconds"] = 60; badSteps[0]["speedKmh"] = 5.15; invalid["steps"] = badSteps; document["plans"] = [invalid]; assert(rejected(document))
+badSteps[0]["speedKmh"] = 5.1; badSteps[0]["inclinePercent"] = 26; invalid["steps"] = badSteps; document["plans"] = [invalid]; assert(rejected(document))
+badSteps[0]["inclinePercent"] = 0; badSteps[0].removeValue(forKey: "title"); invalid["steps"] = badSteps; document["plans"] = [invalid]; assert(rejected(document))
+document["plans"] = []; assert(rejected(document))
+do { _ = try PlanImportDocument.decode(Data(repeating: 32, count: 1_048_577), firstID: 10); assertionFailure() } catch {}
+print("Passed: FTMS, accounting, plan validation, motion confirmation, overlap review and batch JSON import.")
+
 '''
 with tempfile.TemporaryDirectory() as directory:
     path = pathlib.Path(directory) / "main.swift"
-    path.write_text("import Foundation\n" + models + data + checks)
-    subprocess.run(["swift", str(path)], check=True)
+    path.write_text("import Foundation\n" + models + data + importer + checks)
+    subprocess.run(["swift", str(path), str(root / "Examples/plan-import.json")], check=True)
