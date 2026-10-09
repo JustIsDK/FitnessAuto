@@ -36,6 +36,9 @@ let measured = ScaleReading.decode(packet("AC 29 02 00 01 AE 01 83 01 80 69 45 F
 assert(measured.kilograms == 83.45 && measured.resistance1 == 430 && measured.resistance2 == 387)
 let latest = ScaleReading.decode(packet("AC 29 02 00 01 A5 01 7A 01 80 69 46 90 00 00 00 00 29 D6 02"))!
 assert(latest.kilograms == 83.6 && latest.stable && latest.resistance1 == 421 && latest.resistance2 == 378)
+// Screen and notification explicitly paired by the user; fat is not yet decoded.
+let paired = ScaleReading.decode(packet("AC 29 02 00 01 A8 01 7E 01 80 69 46 5E 00 00 00 00 29 D6 17"))!
+assert(paired.kilograms == 83.55 && paired.stable && paired.resistance1 == 424 && paired.resistance2 == 382)
 let profile = ScaleProfile(heightCm: 178, age: 34, male: true, referenceKg: 83.45)
 let initialization = profile.initialization(at: Date(timeIntervalSince1970: Double(0x6AC8B8F7)))
 assert(initialization == [
