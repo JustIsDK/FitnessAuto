@@ -8,6 +8,7 @@ struct WeightView: View {
     @AppStorage("fitnessauto.weight.birthMonth") private var birthMonth = 0
     @AppStorage("fitnessauto.weight.sex") private var sex = -1
     @AppStorage("fitnessauto.weight.referenceKg") private var referenceText = ""
+    @State private var showingBirthMonthPicker = false
     @FocusState private var inputFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
     private var height: Double? {
@@ -15,7 +16,7 @@ struct WeightView: View {
         return value
     }
     private var age: Int? { ScaleBirthMonth.age(year: birthYear, month: birthMonth) }
-    private var currentYear: Int { Calendar.current.component(.year, from: Date()) }
+
     private var profile: ScaleProfile? {
         guard let height, height.rounded() == height, let age, sex == 0 || sex == 1,
               let reference = Double(referenceText) else { return nil }
@@ -63,15 +64,18 @@ struct WeightView: View {
             Section("体脂测量资料（实验）") {
                 Text("体重通知不需要初始化；体脂测量可能需要个人资料。填写与蚂蚁阿福一致的资料后应用，再离秤重新裸脚站稳测量。资料字段仍需真机核对。")
                     .font(.footnote).foregroundStyle(.secondary)
-                Picker("出生年份", selection: $birthYear) {
-                    Text("请选择").tag(0)
-                    ForEach((currentYear - 101)...(currentYear - 10), id: \.self) { year in
-                        Text(String(year) + " 年").tag(year)
+                Button {
+                    inputFocused = false
+                    showingBirthMonthPicker = true
+                } label: {
+                    HStack {
+                        Text("出生年月").foregroundStyle(.primary)
+                        Spacer()
+                        Text(birthYear > 0 && (1...12).contains(birthMonth)
+                             ? "\(String(birthYear)) 年 \(birthMonth) 月" : "请选择")
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
                     }
-                }
-                Picker("出生月份", selection: $birthMonth) {
-                    Text("请选择").tag(0)
-                    ForEach(1...12, id: \.self) { month in Text("\(month) 月").tag(month) }
                 }
                 LabeledContent("当前年龄", value: age.map { "\($0) 岁" } ?? "请选择有效出生年月")
                 Text("出生年月只需填写一次，测量时自动计算年龄，按出生月份更新。")
@@ -80,7 +84,7 @@ struct WeightView: View {
                     Text("请选择").tag(-1)
                     Text("女").tag(0)
                     Text("男").tag(1)
-                }
+                }.pickerStyle(.segmented)
                 profileInput("最近体重", text: $referenceText, unit: "kg")
                 if let reading = scale.reading {
                     Button("使用本次体重填写最近体重") {
@@ -125,6 +129,12 @@ struct WeightView: View {
                 Button("完成") { inputFocused = false }
             }
         }
+        .sheet(isPresented: $showingBirthMonthPicker) {
+            BirthMonthPicker(year: birthYear, month: birthMonth) { year, month in
+                birthYear = year
+                birthMonth = month
+            }
+        }
         .onDisappear { scale.stop() }
         .onChange(of: scenePhase) { _, phase in if phase == .background { scale.stop() } }
     }
@@ -136,5 +146,59 @@ struct WeightView: View {
                 .multilineTextAlignment(.trailing).focused($inputFocused)
             Text(unit).foregroundStyle(.secondary)
         }
+    }
+}
+
+/// Explicit wheel layout keeps long year lists scrollable and independent of live BLE updates.
+private struct BirthMonthPicker: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var year: Int
+    @State private var month: Int
+    private let years: ClosedRange<Int>
+    private let save: (Int, Int) -> Void
+
+    init(year: Int, month: Int, save: @escaping (Int, Int) -> Void) {
+        let currentYear = Calendar.current.component(.year, from: Date())
+        years = (currentYear - 101)...(currentYear - 10)
+        _year = State(initialValue: years.contains(year) ? year : currentYear - 30)
+        _month = State(initialValue: (1...12).contains(month) ? month : 1)
+        self.save = save
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                HStack(spacing: 0) {
+                    Picker("出生年份", selection: $year) {
+                        ForEach(years, id: \.self) { year in Text("\(String(year)) 年").tag(year) }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                    Picker("出生月份", selection: $month) {
+                        ForEach(1...12, id: \.self) { month in Text("\(month) 月").tag(month) }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                }
+                .frame(height: 216)
+                Text("分别上下滚动年份和月份，点击完成保存。")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            .padding()
+            .navigationTitle("出生年月")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { save(year, month); dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.height(360), .large])
+        .presentationDragIndicator(.visible)
     }
 }
