@@ -15,15 +15,19 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     @Published private(set) var speedRangeText = "速度范围：尚未读取"
     @Published private(set) var inclineRangeText = "坡度范围：尚未读取"
     @Published private(set) var extensionText = "厂商扩展：尚未发现"
+    @Published private(set) var vendorText = "麦瑞克协议：尚未发现"
+    @Published private(set) var vendorStatusText = "设备状态：尚未读取"
     @Published private(set) var currentSpeedText = "暂不订阅（连接诊断）"
     @Published private(set) var logs: [String] = []
     @Published private(set) var bluetoothReady = false
     @Published private(set) var connected = false
+    @Published private(set) var autoConnectText = "启动后自动连接已开启"
     @Published private(set) var controlGranted = false
     @Published private(set) var controlSubscribed = false
     @Published private(set) var speedSupported = false
     @Published private(set) var inclineSupported = false
     @Published private(set) var commandPending = false
+    @Published private(set) var vendorWritePending = false
     @Published var readyForMotion = false
 
     private let serviceUUID = CBUUID(string: "1826")
@@ -34,11 +38,23 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private let statusUUID = CBUUID(string: "2ADA")
     private let treadmillDataUUID = CBUUID(string: "2ACD")
     private let extensionUUID = CBUUID(string: "D18D2C10-C44C-11E8-A355-529269FB1459")
+    private let vendorServiceUUID = CBUUID(string: "F0FF")
+    private let vendorNotifyUUID = CBUUID(string: "F1FF")
+    private let vendorWriteUUID = CBUUID(string: "F2FF")
 
     private var central: CBCentralManager!
     private var discovered: [UUID: CBPeripheral] = [:]
     private var peripheral: CBPeripheral?
+    private var autoConnectEnabled = true
+    private var autoConnectAttempted = false
     private var controlCharacteristic: CBCharacteristic?
+    private var vendorWriteCharacteristic: CBCharacteristic?
+    private var vendorSubscribed = false
+    private var vendorRunning = false
+    private var vendorSpeedTenths: UInt8?
+    private var vendorIncline: UInt8?
+    private var lastVendorStatus: Date?
+    private var vendorInitialQueryPending = false
     private var pendingOpcode: UInt8?
     private var controlDenied = false
     private var pendingToken = UUID()
@@ -56,6 +72,15 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
 
     var canSendIncline: Bool {
         canRequestControl && controlGranted && inclineSupported
+    }
+
+    var canRefreshVendorStatus: Bool {
+        connected && vendorSubscribed && vendorWriteCharacteristic != nil && !vendorWritePending
+    }
+
+    var canSendVendorMotion: Bool {
+        canRefreshVendorStatus && vendorRunning && vendorSpeedTenths != nil &&
+            vendorIncline != nil && readyForMotion
     }
 
     override init() {
@@ -111,6 +136,77 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         let bits = UInt16(bitPattern: raw)
         send([0x03, UInt8(bits & 0xff), UInt8(bits >> 8)],
              label: String(format: "目标坡度 %.0f%%", percent))
+    }
+
+    func refreshVendorStatus() {
+        guard canRefreshVendorStatus else { return }
+        writeVendor([0x02, 0x51, 0x51, 0x03], label: "读取麦瑞克设备状态")
+    }
+
+    func setVendorSpeed(_ kmh: Double) {
+        guard canSendVendorMotion, let incline = vendorIncline else { return }
+        guard let lastVendorStatus, Date().timeIntervalSince(lastVendorStatus) < 10 else {
+            log("设备状态已过期；请先刷新状态")
+            return
+        }
+        guard (1.0...1.5).contains(kmh), speedRange?.contains(kmh) ?? false else { return }
+        let speed = UInt8((kmh * 10).rounded())
+        sendVendorTarget(speed: speed, incline: incline)
+    }
+
+    func setVendorIncline(_ percent: Int) {
+        guard canSendVendorMotion, let speed = vendorSpeedTenths else { return }
+        guard let lastVendorStatus, Date().timeIntervalSince(lastVendorStatus) < 10 else {
+            log("设备状态已过期；请先刷新状态")
+            return
+        }
+        guard (0...1).contains(percent), inclineRange?.contains(Double(percent)) ?? false else { return }
+        sendVendorTarget(speed: speed, incline: UInt8(percent))
+    }
+
+    private func sendVendorTarget(speed: UInt8, incline: UInt8) {
+        // Official-app capture: 02 53 02 1E 03 4C 03 set 3.0 km/h and 3%.
+        let body: [UInt8] = [0x53, 0x02, speed, incline]
+        // Checksum observed in the official-app capture: (0xC2 - sum(body)) & 0xFF.
+        let checksum = UInt8(truncatingIfNeeded: 0xC2 - Int(body.reduce(0) { $0 + Int($1) }))
+        writeVendor([0x02] + body + [checksum, 0x03],
+                    label: String(format: "麦瑞克目标 %.1f km/h、%d%%", Double(speed) / 10, incline))
+        lastVendorStatus = nil
+    }
+
+    private func writeVendor(_ bytes: [UInt8], label: String) {
+        guard let peripheral, let vendorWriteCharacteristic, canRefreshVendorStatus else { return }
+        vendorWritePending = true
+        log("发送 \(label)：\(hex(Data(bytes)))")
+        peripheral.writeValue(Data(bytes), for: vendorWriteCharacteristic, type: .withResponse)
+    }
+
+    private func handleVendorNotification(_ data: Data) {
+        let bytes = [UInt8](data)
+        log("麦瑞克状态返回：\(hex(data))")
+        guard bytes.count >= 5, bytes.first == 0x02, bytes.last == 0x03 else { return }
+        let checksum = bytes[1..<(bytes.count - 2)].reduce(UInt8(0), ^)
+        guard checksum == bytes[bytes.count - 2] else {
+            log("麦瑞克状态校验失败")
+            return
+        }
+        if bytes[1] == 0x51, bytes.count >= 7 {
+            vendorRunning = bytes[2] == 0x03
+            if vendorRunning {
+                vendorSpeedTenths = bytes[3]
+                vendorIncline = bytes[4]
+                lastVendorStatus = Date()
+                vendorStatusText = String(format: "运行中：%.1f km/h，坡度 %d%%",
+                                          Double(bytes[3]) / 10, bytes[4])
+            } else {
+                vendorSpeedTenths = nil
+                vendorIncline = nil
+                lastVendorStatus = nil
+                vendorStatusText = String(format: "未运行（状态 0x%02X）", bytes[2])
+            }
+        } else if bytes[1] == 0x53 {
+            log("麦瑞克设置命令已回显；请核对面板实际变化")
+        }
     }
 
     private func send(_ bytes: [UInt8], label: String) {
@@ -178,6 +274,14 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         pendingOpcode = nil
         pendingToken = UUID()
         controlCharacteristic = nil
+        vendorWriteCharacteristic = nil
+        vendorSubscribed = false
+        vendorRunning = false
+        vendorSpeedTenths = nil
+        vendorIncline = nil
+        lastVendorStatus = nil
+        vendorInitialQueryPending = false
+        vendorWritePending = false
         speedRange = nil
         inclineRange = nil
         pendingReads = []
@@ -185,6 +289,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         speedRangeText = "速度范围：尚未读取"
         inclineRangeText = "坡度范围：尚未读取"
         extensionText = "厂商扩展：尚未发现"
+        vendorText = "麦瑞克协议：尚未发现"
+        vendorStatusText = "设备状态：尚未读取"
         currentSpeedText = "暂不订阅（连接诊断）"
         controlText = "尚未请求控制权"
         readyForMotion = false
@@ -226,6 +332,11 @@ extension TreadmillBluetooth: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         bluetoothReady = central.state == .poweredOn
         connectionText = bluetoothReady ? "蓝牙已就绪" : "蓝牙不可用：\(central.state.rawValue)"
+        if bluetoothReady && autoConnectEnabled && !connected {
+            autoConnectAttempted = false
+            autoConnectText = "正在自动扫描 MRK-T10-D59A…"
+            scan()
+        }
     }
 
     func centralManager(_ central: CBCentralManager,
@@ -239,13 +350,21 @@ extension TreadmillBluetooth: CBCentralManagerDelegate {
         } else {
             devices.append(item)
         }
+        if autoConnectEnabled && !autoConnectAttempted && !connected &&
+            (name.caseInsensitiveCompare("MRK-T10-D59A") == .orderedSame ||
+             name.uppercased().hasPrefix("MRK-T10-D59A")) {
+            autoConnectAttempted = true
+            autoConnectText = "已发现跑步机，正在自动连接…"
+            connect(peripheral.identifier)
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         connected = true
         connectionText = "已连接 \(peripheral.name ?? peripheral.identifier.uuidString)"
+        autoConnectText = "已自动连接跑步机"
         log("已连接，发现服务")
-        peripheral.discoverServices([serviceUUID])
+        peripheral.discoverServices([serviceUUID, vendorServiceUUID])
     }
 
     func centralManager(_ central: CBCentralManager,
@@ -266,21 +385,42 @@ extension TreadmillBluetooth: CBCentralManagerDelegate {
 extension TreadmillBluetooth: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error { log("发现服务失败：\(error.localizedDescription)"); return }
-        guard let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) else {
+        if let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) {
+            peripheral.discoverCharacteristics(
+                [featureUUID, speedRangeUUID, inclineRangeUUID, controlUUID, statusUUID,
+                 treadmillDataUUID, extensionUUID],
+                for: service
+            )
+        } else {
             log("未找到 FTMS 1826 服务")
-            return
         }
-        peripheral.discoverCharacteristics(
-            [featureUUID, speedRangeUUID, inclineRangeUUID, controlUUID, statusUUID,
-             treadmillDataUUID, extensionUUID],
-            for: service
-        )
+        if let service = peripheral.services?.first(where: { $0.uuid == vendorServiceUUID }) {
+            peripheral.discoverCharacteristics([vendorNotifyUUID, vendorWriteUUID], for: service)
+        } else {
+            vendorText = "麦瑞克协议 F0FF：未发现"
+            log("未找到麦瑞克私有服务 F0FF")
+        }
     }
 
     func peripheral(_ peripheral: CBPeripheral,
                     didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         if let error { log("发现特征失败：\(error.localizedDescription)"); return }
         let characteristics = service.characteristics ?? []
+        if service.uuid == vendorServiceUUID {
+            vendorWriteCharacteristic = characteristics.first { $0.uuid == vendorWriteUUID &&
+                $0.properties.contains(.write) }
+            guard let notify = characteristics.first(where: { $0.uuid == vendorNotifyUUID &&
+                $0.properties.contains(.notify) }), vendorWriteCharacteristic != nil else {
+                vendorText = "麦瑞克协议：缺少 F1FF 通知或 F2FF 写入"
+                log(vendorText)
+                return
+            }
+            vendorText = "麦瑞克协议 F0FF：已发现"
+            log("发现 F0FF / F1FF 通知 / F2FF 写入")
+            peripheral.setNotifyValue(true, for: notify)
+            return
+        }
+        guard service.uuid == serviceUUID else { return }
         if let extensionCharacteristic = characteristics.first(where: { $0.uuid == extensionUUID }) {
             let writable = extensionCharacteristic.properties.contains(.write)
             extensionText = writable ? "厂商扩展：已发现，可写；解锁码未知" : "厂商扩展：已发现，未声明 Write"
@@ -308,6 +448,13 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             controlSubscribed = characteristic.isNotifying
             log(controlSubscribed ? "控制点返回已订阅" : "控制点返回未订阅")
             if controlSubscribed { readNextCharacteristic() }
+        } else if characteristic.uuid == vendorNotifyUUID {
+            vendorSubscribed = characteristic.isNotifying
+            log(vendorSubscribed ? "麦瑞克状态通知已订阅" : "麦瑞克状态通知未订阅")
+            if vendorSubscribed {
+                vendorInitialQueryPending = true
+                writeVendor([0x02, 0x50, 0x00, 0x50, 0x03], label: "初始化麦瑞克状态查询")
+            }
         }
     }
 
@@ -365,6 +512,8 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             }
         case statusUUID:
             log("设备状态：\(hex(value))")
+        case vendorNotifyUUID:
+            handleVendorNotification(value)
         default: break
         }
         if [featureUUID, speedRangeUUID, inclineRangeUUID].contains(characteristic.uuid) {
@@ -374,6 +523,19 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
 
     func peripheral(_ peripheral: CBPeripheral,
                     didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        if characteristic.uuid == vendorWriteUUID {
+            vendorWritePending = false
+            if let error {
+                vendorInitialQueryPending = false
+                log("麦瑞克写入失败：\(errorDetails(error))")
+                return
+            }
+            if vendorInitialQueryPending {
+                vendorInitialQueryPending = false
+                refreshVendorStatus()
+            }
+            return
+        }
         guard let error else { return }
         log("写入失败：\(error.localizedDescription)")
         pendingToken = UUID()

@@ -15,6 +15,7 @@ struct ContentView: View {
                     Text("连接诊断版 3 · 识别厂商扩展与控制权拒绝")
                         .font(.footnote)
                     Text(bluetooth.connectionText)
+                    Text(bluetooth.autoConnectText).font(.footnote)
                     Button("扫描 FTMS 跑步机") { bluetooth.scan() }
                         .disabled(!bluetooth.bluetoothReady)
 
@@ -35,6 +36,8 @@ struct ContentView: View {
                     Text(bluetooth.inclineRangeText)
                     Text(bluetooth.extensionText)
                     Text("当前跑带速度：\(bluetooth.currentSpeedText)")
+                    Text(bluetooth.vendorText)
+                    Text(bluetooth.vendorStatusText)
                 }
 
                 Section("控制测试") {
@@ -59,6 +62,21 @@ struct ContentView: View {
 
                     Text("本验证版不发送启动指令。先在跑步机面板上以最低速度启动，确认周围无人站上跑带后再点调速或调坡。实体停止键和安全夹始终优先。")
                         .font(.footnote)
+                }
+
+                Section("麦瑞克私有协议（实验）") {
+                    Text("先在官方 APP 或跑步机面板上启动，再刷新状态。这里只测试低速 1.0/1.5 km/h 和坡度 0/1%，不会发送启动指令。")
+                        .font(.footnote)
+                    Button("刷新麦瑞克状态") { bluetooth.refreshVendorStatus() }
+                        .disabled(!bluetooth.canRefreshVendorStatus)
+                    Button("私有协议：速度 1.0 km/h") { bluetooth.setVendorSpeed(1.0) }
+                        .disabled(!bluetooth.canSendVendorMotion)
+                    Button("私有协议：速度 1.5 km/h") { bluetooth.setVendorSpeed(1.5) }
+                        .disabled(!bluetooth.canSendVendorMotion)
+                    Button("私有协议：坡度 0%") { bluetooth.setVendorIncline(0) }
+                        .disabled(!bluetooth.canSendVendorMotion)
+                    Button("私有协议：坡度 1%") { bluetooth.setVendorIncline(1) }
+                        .disabled(!bluetooth.canSendVendorMotion)
                 }
 
                 Section("通信记录") {
