@@ -4,12 +4,15 @@ import HealthKit
 final class WorkoutRecorder: ObservableObject {
     @Published private(set) var records: [WorkoutRecord] = []
     @Published private(set) var recording = false
+    @Published private(set) var waitingForMotion = false
     @Published private(set) var seconds = 0
     @Published private(set) var distanceMeters: Double?
     @Published private(set) var energyKcal: Double?
     @Published var running = false
     @Published private(set) var status = "运动记录保存在本机；写入苹果健康需要单独授权"
     @Published private(set) var saving = false
+    @Published private(set) var healthAuthorized = false
+    @Published private(set) var healthPartiallyAuthorized = false
     private var accumulator: WorkoutAccumulator?
     private var lastPersistedSecond = -1
     private let health = HKHealthStore()
@@ -20,6 +23,7 @@ final class WorkoutRecorder: ObservableObject {
     }
 
     init() {
+        refreshHealthAuthorization()
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         do {
             let archive = try JSONDecoder().decode(Archive.self, from: Data(contentsOf: url))
@@ -31,17 +35,22 @@ final class WorkoutRecorder: ObservableObject {
         } catch { status = "运动记录读取失败：\(error.localizedDescription)" }
     }
 
-    func start(title: String = "跑步机训练") {
+    func start(title: String = "跑步机训练", waitingForMotion: Bool = false) {
         guard !recording else { return }
         accumulator = WorkoutAccumulator(record: WorkoutRecord(title: title, running: running))
         recording = true
+        self.waitingForMotion = waitingForMotion
         seconds = 0; distanceMeters = nil; energyKcal = nil
         lastPersistedSecond = -1
-        status = "记录中：只计入收到跑步机运行状态的时段"
+        status = waitingForMotion ? "等待跑步机启动；启动后自动记录" : "记录中：只计入收到跑步机运行状态的时段"
     }
 
     func observeRunning() {
         guard recording else { return }
+        if waitingForMotion {
+            waitingForMotion = false
+            status = "记录中：只计入收到跑步机运行状态的时段"
+        }
         accumulator?.observe(date: Date(), uptime: ProcessInfo.processInfo.systemUptime)
         publishMetrics()
         if seconds / 5 != lastPersistedSecond / 5 || lastPersistedSecond < 0 {
@@ -67,6 +76,7 @@ final class WorkoutRecorder: ObservableObject {
         guard recording, let record = accumulator?.record else { return }
         if record.duration > 0, !records.contains(where: { $0.id == record.id }) { records.insert(record, at: 0) }
         recording = false
+        waitingForMotion = false
         accumulator = nil
         status = reason
         _ = persist()
@@ -84,15 +94,31 @@ final class WorkoutRecorder: ObservableObject {
     private var energyType: HKQuantityType { HKQuantityType(.activeEnergyBurned) }
     private var shareTypes: Set<HKSampleType> { [HKObjectType.workoutType(), distanceType, energyType] }
 
+    func refreshHealthAuthorization() {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            healthAuthorized = false
+            healthPartiallyAuthorized = false
+            return
+        }
+        let permissions = shareTypes.map { health.authorizationStatus(for: $0) == .sharingAuthorized }
+        let all = permissions.allSatisfy { $0 }
+        let partial = !all && permissions.contains(true)
+        if healthAuthorized != all { healthAuthorized = all }
+        if healthPartiallyAuthorized != partial { healthPartiallyAuthorized = partial }
+    }
+
     @MainActor func authorize() async {
         guard HKHealthStore.isHealthDataAvailable() else { status = "此设备不支持苹果健康"; return }
-        guard !saving else { return }
+        refreshHealthAuthorization()
+        guard !saving, !healthAuthorized else { return }
         saving = true
-        defer { saving = false }
+        defer { refreshHealthAuthorization(); saving = false }
         do {
             try await health.requestAuthorization(toShare: shareTypes, read: [])
-            status = health.authorizationStatus(for: HKObjectType.workoutType()) == .sharingAuthorized
-                ? "已允许写入运动记录；结束后可选择写入" : "未允许写入运动记录，请在健康权限中开启"
+            refreshHealthAuthorization()
+            status = healthAuthorized ? "已授权苹果健康；结束后可选择写入"
+                : healthPartiallyAuthorized ? "部分权限已授权，请在健康 APP 中开启其余写入权限"
+                : "未允许写入，请在健康 APP 中开启写入权限"
         } catch { status = "健康授权失败：\(error.localizedDescription)" }
     }
 
@@ -100,7 +126,7 @@ final class WorkoutRecorder: ObservableObject {
         guard !saving, !record.healthSaved, let start = record.start, let end = record.end, end > start else { return }
         guard HKHealthStore.isHealthDataAvailable() else { status = "此设备不支持苹果健康"; return }
         saving = true
-        defer { saving = false }
+        defer { refreshHealthAuthorization(); saving = false }
         do {
             try await health.requestAuthorization(toShare: shareTypes, read: [])
             var needed: [HKSampleType] = [HKObjectType.workoutType()]
@@ -155,11 +181,18 @@ final class WorkoutRecorder: ObservableObject {
 
 struct WorkoutRecordsView: View {
     @EnvironmentObject private var recorder: WorkoutRecorder
+    @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         List {
             Section("苹果健康") {
                 Text(recorder.status).font(.subheadline)
-                Button("授权苹果健康") { Task { await recorder.authorize() } }.disabled(recorder.saving)
+                Button(recorder.healthAuthorized ? "已授权" : recorder.healthPartiallyAuthorized ? "补充健康授权" : "授权苹果健康") {
+                    Task { await recorder.authorize() }
+                }.disabled(recorder.saving || recorder.healthAuthorized)
+                if recorder.healthPartiallyAuthorized {
+                    Text("部分写入权限未开启，可在健康 APP 的应用权限中调整。")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 Text("时长来自已确认运行的蓝牙观测；距离和热量仅使用跑步机标准运动数据。缺失字段不会猜测或写入。锁屏、断线会结束当前记录；训练继续时创建新记录。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
@@ -172,7 +205,7 @@ struct WorkoutRecordsView: View {
                         Text("\(record.running ? "室内跑步" : "室内步行") · \(clock(Int(record.duration)))")
                         Text(record.distanceMeters.map { String(format: "距离 %.2f km", $0 / 1000) } ?? "距离：设备未提供连续有效数据")
                             .font(.caption).foregroundStyle(.secondary)
-                        Text(record.energyKcal.map { String(format: "设备热量 %.0f kcal", $0) } ?? "热量：设备未提供连续有效数据")
+                        Text(record.energyKcal.map { String(format: "消耗热量 %.0f kcal", $0) } ?? "消耗热量：设备未提供连续有效数据")
                             .font(.caption).foregroundStyle(.secondary)
                         Button(record.healthSaved ? "已写入苹果健康" : "写入苹果健康") {
                             Task { await recorder.saveToHealth(record) }
@@ -181,5 +214,9 @@ struct WorkoutRecordsView: View {
                 }
             }
         }.navigationTitle("运动记录")
+            .onAppear { recorder.refreshHealthAuthorization() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { recorder.refreshHealthAuthorization() }
+            }
     }
 }

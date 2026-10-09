@@ -87,11 +87,15 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         } else { telemetryText = "等待设备提供标准运动数据 2ACD；可先记录已确认运行时长" }
     }
 
+    var canStartRecording: Bool {
+        appIsActive && connected && vendorAuthorized && vendorSubscribed && !recorder.recording
+    }
+
     func startRecording() {
-        guard appIsActive, connected, vendorRunning,
-              lastVendorStatus.map({ Date().timeIntervalSince($0) < 3 }) == true else { return }
+        guard canStartRecording else { return }
         enableTelemetry()
-        recorder.start(title: workoutPlan?.title ?? "跑步机训练")
+        let runningNow = vendorRunning && lastVendorStatus.map({ Date().timeIntervalSince($0) < 3 }) == true
+        recorder.start(title: workoutPlan?.title ?? "跑步机训练", waitingForMotion: !runningNow)
     }
 
     @Published private(set) var devices: [DiscoveredTreadmill] = []
@@ -605,7 +609,9 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
                 liveSpeed = nil
                 liveIncline = nil
                 vendorSpeedTenths = nil
-                recorder.finish(reason: "跑步机已停止或倒计时；记录已保存在本机")
+                if !recorder.waitingForMotion {
+                    recorder.finish(reason: "跑步机已停止或倒计时；记录已保存在本机")
+                }
                 pauseWorkout("跑步机已停止或处于倒计时，计划已暂停")
                 vendorIncline = nil
                 lastVendorStatus = nil

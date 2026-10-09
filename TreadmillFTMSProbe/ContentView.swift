@@ -75,17 +75,26 @@ struct ContentView: View {
                 }
                 Section("运动记录") {
                     if recorder.recording {
-                        Label("记录中 · \(clock(recorder.seconds))", systemImage: "record.circle")
+                        Label(recorder.waitingForMotion ? "等待跑步机启动" : "记录中 · \(clock(recorder.seconds))", systemImage: "record.circle")
                         Text(recorder.distanceMeters.map { String(format: "本次距离 %.2f km", $0 / 1000) } ?? "本次距离 —")
-                        Text(recorder.energyKcal.map { String(format: "设备热量 %.0f kcal", $0) } ?? "设备热量 —")
+                        Text(recorder.energyKcal.map { String(format: "消耗热量 %.0f kcal", $0) } ?? "消耗热量 —")
                         Button("结束记录（不停止跑带）") { recorder.finish() }
                     } else {
                         Picker("运动类型", selection: $recorder.running) {
                             Text("室内步行").tag(false)
                             Text("室内跑步").tag(true)
                         }
-                        Button("单独记录运动", systemImage: "record.circle") { bluetooth.startRecording() }
-                            .disabled(!bluetooth.connected || bluetooth.liveSpeed == nil)
+                        Text("用于苹果健康的运动分类，请按本次运动选择。")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        Button { bluetooth.startRecording() } label: {
+                            Text("开始记录").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!bluetooth.canStartRecording)
+                        Text(!bluetooth.connected ? "连接跑步机后可开始记录。"
+                             : !bluetooth.canStartRecording ? "正在准备连接，请稍候。"
+                             : "不使用训练计划时，点击开始记录；若跑带未启动，将等待启动后计时。")
+                            .font(.footnote).foregroundStyle(.secondary)
                     }
                     Text(bluetooth.telemetryText).font(.caption).foregroundStyle(.secondary)
                     NavigationLink("运动记录与苹果健康", destination: WorkoutRecordsView())
