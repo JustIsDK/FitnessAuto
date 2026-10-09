@@ -31,6 +31,11 @@ assert(restored.id == record.id && restored.bmi == record.bmi)
 let final2 = packet("AC 29 02 00 01 B5 01 88 01 80 69 45 64 00 00 00 00 29 D6 13")
 let second = ScaleReading.decode(final2)!
 assert(second.kilograms == 83.3 && second.resistance1 == 437 && second.resistance2 == 392)
+// Additional real notifications cover changing grams and both impedance fields.
+let measured = ScaleReading.decode(packet("AC 29 02 00 01 AE 01 83 01 80 69 45 FA 00 00 00 00 29 D6 1D"))!
+assert(measured.kilograms == 83.45 && measured.resistance1 == 430 && measured.resistance2 == 387)
+let latest = ScaleReading.decode(packet("AC 29 02 00 01 A5 01 7A 01 80 69 46 90 00 00 00 00 29 D6 02"))!
+assert(latest.kilograms == 83.6 && latest.stable && latest.resistance1 == 421 && latest.resistance2 == 378)
 let profile = ScaleProfile(heightCm: 178, age: 34, male: true, referenceKg: 83.45)
 let initialization = profile.initialization(at: Date(timeIntervalSince1970: Double(0x6AC8B8F7)))
 assert(initialization == [
