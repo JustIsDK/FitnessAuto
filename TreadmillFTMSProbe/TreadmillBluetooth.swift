@@ -65,6 +65,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private var vendorSubscribed = false
     private var vendorAuthorized = false
     private var vendorHandshakePending = false
+    private var vendorTargetPending = false
     private var vendorRunning = false
     private var vendorSpeedTenths: UInt8?
     private var vendorIncline: UInt8?
@@ -164,7 +165,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
             log("设备状态已过期；请先刷新状态")
             return
         }
-        guard (1.0...1.5).contains(kmh), speedRange?.contains(kmh) ?? false else { return }
+        guard (1.0...6.0).contains(kmh), speedRange?.contains(kmh) ?? false else { return }
         let speed = UInt8((kmh * 10).rounded())
         sendVendorTarget(speed: speed, incline: incline)
     }
@@ -175,7 +176,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
             log("设备状态已过期；请先刷新状态")
             return
         }
-        guard (0...1).contains(percent), inclineRange?.contains(Double(percent)) ?? false else { return }
+        guard (0...2).contains(percent), inclineRange?.contains(Double(percent)) ?? false else { return }
         sendVendorTarget(speed: speed, incline: UInt8(percent))
     }
 
@@ -186,6 +187,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         let checksum = UInt8(truncatingIfNeeded: 0xC2 - Int(body.reduce(0) { $0 + Int($1) }))
         writeVendor([0x02] + body + [checksum, 0x03],
                     label: String(format: "麦瑞克目标 %.1f km/h、%d%%", Double(speed) / 10, incline))
+        vendorTargetPending = true
         lastVendorStatus = nil
     }
 
@@ -323,6 +325,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         vendorSubscribed = false
         vendorAuthorized = false
         vendorHandshakePending = false
+        vendorTargetPending = false
         vendorRunning = false
         vendorSpeedTenths = nil
         vendorIncline = nil
@@ -608,11 +611,19 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
         if characteristic.uuid == vendorWriteUUID {
             vendorWritePending = false
             if let error {
+                vendorTargetPending = false
                 vendorInitialQueryPending = false
                 vendorHandshakePending = false
                 vendorAuthorized = false
                 log("麦瑞克写入失败：\(errorDetails(error))")
                 return
+            }
+            if vendorTargetPending {
+                vendorTargetPending = false
+                log("麦瑞克目标写入已确认；1 秒后自动刷新状态")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                    self?.refreshVendorStatus()
+                }
             }
             if vendorInitialQueryPending {
                 vendorInitialQueryPending = false

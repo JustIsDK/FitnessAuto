@@ -73,9 +73,15 @@ struct ContentView: View {
                         .disabled(!bluetooth.canSendVendorMotion)
                     Button("私有协议：速度 1.5 km/h") { bluetooth.setVendorSpeed(1.5) }
                         .disabled(!bluetooth.canSendVendorMotion)
+                    Button("私有协议：速度 3.0 km/h") { bluetooth.setVendorSpeed(3.0) }
+                        .disabled(!bluetooth.canSendVendorMotion)
+                    Button("私有协议：速度 6.0 km/h") { bluetooth.setVendorSpeed(6.0) }
+                        .disabled(!bluetooth.canSendVendorMotion)
                     Button("私有协议：坡度 0%") { bluetooth.setVendorIncline(0) }
                         .disabled(!bluetooth.canSendVendorMotion)
                     Button("私有协议：坡度 1%") { bluetooth.setVendorIncline(1) }
+                        .disabled(!bluetooth.canSendVendorMotion)
+                    Button("私有协议：坡度 2%") { bluetooth.setVendorIncline(2) }
                         .disabled(!bluetooth.canSendVendorMotion)
                 }
 
