@@ -52,6 +52,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private var controlCharacteristic: CBCharacteristic?
     private var vendorWriteCharacteristic: CBCharacteristic?
     private var vendorSubscribed = false
+    private var vendorAuthorized = false
+    private var vendorHandshakePending = false
     private var vendorRunning = false
     private var vendorSpeedTenths: UInt8?
     private var vendorIncline: UInt8?
@@ -81,7 +83,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     var canSendVendorMotion: Bool {
-        canRefreshVendorStatus && vendorRunning && vendorSpeedTenths != nil &&
+        canRefreshVendorStatus && vendorAuthorized && vendorRunning && vendorSpeedTenths != nil &&
             vendorIncline != nil && readyForMotion
     }
 
@@ -186,6 +188,14 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private func handleVendorNotification(_ data: Data) {
         let bytes = [UInt8](data)
         log("麦瑞克状态返回：\(hex(data))")
+        if bytes == [0xAA, 0x01, 0x00, 0x01, 0x55] {
+            vendorHandshakePending = false
+            vendorAuthorized = true
+            vendorText = "麦瑞克协议 FFF0：已握手"
+            log("麦瑞克私有控制握手已回显")
+            refreshVendorStatus()
+            return
+        }
         guard bytes.count >= 5, bytes.first == 0x02, bytes.last == 0x03 else { return }
         let checksum = bytes[1..<(bytes.count - 2)].reduce(UInt8(0), ^)
         guard checksum == bytes[bytes.count - 2] else {
@@ -278,6 +288,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         controlCharacteristic = nil
         vendorWriteCharacteristic = nil
         vendorSubscribed = false
+        vendorAuthorized = false
+        vendorHandshakePending = false
         vendorRunning = false
         vendorSpeedTenths = nil
         vendorIncline = nil
@@ -454,8 +466,10 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             vendorSubscribed = characteristic.isNotifying
             log(vendorSubscribed ? "麦瑞克状态通知已订阅" : "麦瑞克状态通知未订阅")
             if vendorSubscribed {
-                vendorInitialQueryPending = true
-                writeVendor([0x02, 0x50, 0x00, 0x50, 0x03], label: "初始化麦瑞克状态查询")
+                // Captured official-app sequence: establish private control
+                // handshake before querying status or sending target values.
+                vendorHandshakePending = true
+                writeVendor([0xAA, 0x01, 0x00, 0x01, 0x55], label: "麦瑞克私有控制握手")
             }
         }
     }
@@ -529,6 +543,8 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             vendorWritePending = false
             if let error {
                 vendorInitialQueryPending = false
+                vendorHandshakePending = false
+                vendorAuthorized = false
                 log("麦瑞克写入失败：\(errorDetails(error))")
                 return
             }
