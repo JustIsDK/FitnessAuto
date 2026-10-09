@@ -3,7 +3,6 @@ import UIKit
 
 struct ContentView: View {
     @EnvironmentObject private var bluetooth: TreadmillBluetooth
-    @EnvironmentObject private var recorder: WorkoutRecorder
     @EnvironmentObject private var library: PlanLibrary
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedPlanID = 1
@@ -61,16 +60,6 @@ struct ContentView: View {
                         }
                     }.padding(.vertical, 8)
                 }
-                Section {
-                    HStack(spacing: 12) {
-                        NavigationLink(destination: PlanLibraryView()) {
-                            DashboardShortcut(title: "计划库", detail: "编辑与导入", icon: "list.bullet.rectangle")
-                        }
-                        NavigationLink(destination: WorkoutRecordsView()) {
-                            DashboardShortcut(title: "运动记录", detail: "查看进步", icon: "heart.text.square")
-                        }
-                    }
-                } header: { AppSectionTitle(title: "快捷入口", icon: "sparkles") }
                 Section {
                     Picker("选择计划", selection: $selectedPlanID) {
                         ForEach(library.plans) { Text($0.title).tag($0.id) }
@@ -143,44 +132,6 @@ struct ContentView: View {
                         }
                     }
                 } header: { AppSectionTitle(title: "训练计划", icon: "list.bullet.rectangle") }
-                Section {
-                    Picker("运动类型", selection: $recorder.running) {
-                        Text("室内步行").tag(false)
-                        Text("室内跑步").tag(true)
-                    }.pickerStyle(.segmented)
-                    Text("用于苹果健康的运动分类，可按本次运动调整。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    if recorder.recording {
-                        Label(recorder.waitingForMotion ? "等待跑步机启动" : "记录中 · \(clock(recorder.seconds))", systemImage: "record.circle")
-                        Text(recorder.distanceMeters.map { String(format: "本次距离 %.2f km", $0 / 1000) } ?? "本次距离 —")
-                        Text(recorder.energyKcal.map { String(format: "消耗热量 %.0f kcal", $0) } ?? "消耗热量 —")
-                        Button(recorder.waitingForMotion ? "取消等待" : "结束记录（不停止跑带）") { bluetooth.finishRecording() }
-                    } else {
-                        Button { bluetooth.startRecording() } label: {
-                            Text("开始记录").frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(!bluetooth.canStartRecording)
-                        Text(!bluetooth.connected ? "连接跑步机后，启动跑带会自动记录。"
-                             : !bluetooth.canStartRecording ? "正在准备连接，请稍候。"
-                             : "检测到跑步机运行时自动记录。手动结束记录后，可点击开始记录恢复。")
-                            .font(.footnote).foregroundStyle(.secondary)
-                    }
-                    Text(bluetooth.telemetryText).font(.caption).foregroundStyle(.secondary)
-                    NavigationLink("运动记录与苹果健康", destination: WorkoutRecordsView())
-                    Text("不执行计划也会记录面板启动的运动。停止后保存记录，可选择写入苹果健康。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                } header: { AppSectionTitle(title: "运动记录", icon: "heart.text.square") }
-                Section {
-                    NavigationLink(destination: WeightView()) {
-                        Label {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("体重测量").font(.headline)
-                                Text("记录体重与 BMI，同步苹果健康").font(.caption).foregroundStyle(.secondary)
-                            }
-                        } icon: { Image(systemName: "scalemass").foregroundStyle(AppDesign.accent) }
-                    }.padding(.vertical, 4)
-                } header: { AppSectionTitle(title: "身体数据", icon: "figure.stand") }
                 Section {
                     DisclosureGroup("训练须知") {
                     Text("开始计划会启动跑步机；结束或完成计划会发送停止指令。暂停仅暂停自动调节。启停以设备状态确认为准，异常时请使用实体停止键。训练期间保持 APP 在前台；方案二放松阶段保留坡度 15%。")
