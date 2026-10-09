@@ -183,8 +183,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private func sendVendorTarget(speed: UInt8, incline: UInt8) {
         // Official-app capture: 02 53 02 1E 03 4C 03 set 3.0 km/h and 3%.
         let body: [UInt8] = [0x53, 0x02, speed, incline]
-        // Checksum observed in the official-app capture: (0xC2 - sum(body)) & 0xFF.
-        let checksum = UInt8(truncatingIfNeeded: 0xC2 - Int(body.reduce(0) { $0 + Int($1) }))
+        // XOR of the payload, confirmed across captured speed/incline frames.
+        let checksum = body.reduce(UInt8(0), ^)
         writeVendor([0x02] + body + [checksum, 0x03],
                     label: String(format: "麦瑞克目标 %.1f km/h、%d%%", Double(speed) / 10, incline))
         vendorTargetPending = true
