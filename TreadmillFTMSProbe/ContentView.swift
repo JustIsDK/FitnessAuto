@@ -65,7 +65,7 @@ struct ContentView: View {
                 }
 
                 Section("麦瑞克私有协议（实验）") {
-                    Text("先在官方 APP 或跑步机面板上启动，再刷新状态。APP 会先执行官方抓包中的私有握手；握手未确认时不会发送调速或调坡指令。")
+                    Text("连接后每秒自动刷新状态。在面板上手动启动跑带并确认无人后，可测试速度和坡度。")
                         .font(.footnote)
                     Button("刷新麦瑞克状态") { bluetooth.refreshVendorStatus() }
                         .disabled(!bluetooth.canRefreshVendorStatus)

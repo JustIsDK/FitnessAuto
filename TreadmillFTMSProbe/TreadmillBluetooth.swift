@@ -66,6 +66,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private var vendorAuthorized = false
     private var vendorHandshakePending = false
     private var vendorTargetPending = false
+    private var vendorStatusTimer: Timer?
     private var vendorRunning = false
     private var vendorSpeedTenths: UInt8?
     private var vendorIncline: UInt8?
@@ -159,6 +160,18 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         writeVendor([0x02, 0x51, 0x51, 0x03], label: "读取麦瑞克设备状态")
     }
 
+    private func startVendorStatusPolling() {
+        guard vendorStatusTimer == nil else { return }
+        log("已开启每秒自动查询麦瑞克状态")
+        vendorStatusTimer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self, self.connected, self.vendorAuthorized else { return }
+            // Skip this tick if another write is awaiting its ATT confirmation.
+            self.refreshVendorStatus()
+        }
+        RunLoop.main.add(vendorStatusTimer!, forMode: .common)
+        refreshVendorStatus()
+    }
+
     func setVendorSpeed(_ kmh: Double) {
         guard canSendVendorMotion, let incline = vendorIncline else { return }
         guard let lastVendorStatus, Date().timeIntervalSince(lastVendorStatus) < 10 else {
@@ -226,7 +239,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
             vendorAuthorized = true
             vendorText = "麦瑞克协议 FFF0：已握手"
             log("麦瑞克私有控制握手已回显")
-            refreshVendorStatus()
+            startVendorStatusPolling()
             return
         }
         guard bytes.count >= 5, bytes.first == 0x02, bytes.last == 0x03 else { return }
@@ -309,6 +322,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     private func resetConnection() {
+        vendorStatusTimer?.invalidate()
+        vendorStatusTimer = nil
         connected = false
         controlGranted = false
         controlDenied = false
@@ -620,10 +635,7 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             }
             if vendorTargetPending {
                 vendorTargetPending = false
-                log("麦瑞克目标写入已确认；1 秒后自动刷新状态")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                    self?.refreshVendorStatus()
-                }
+                log("麦瑞克目标写入已确认；等待自动查询确认设备状态")
             }
             if vendorInitialQueryPending {
                 vendorInitialQueryPending = false
@@ -646,7 +658,7 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
                 vendorAuthorized = true
                 vendorText = "麦瑞克协议 FFF0：握手写入已确认"
                 log("麦瑞克私有控制握手写入已确认；未等待额外回显")
-                refreshVendorStatus()
+                startVendorStatusPolling()
             }
             return
         }
