@@ -400,6 +400,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     // The user chooses when this app may claim the treadmill.
     private var autoConnectEnabled = false
     private var autoConnectAttempted = false
+    private var resumeConnectionRequested = false
     private var controlCharacteristic: CBCharacteristic?
     private var vendorWriteCharacteristic: CBCharacteristic?
     private var handshakeCharacteristic: CBCharacteristic?
@@ -482,7 +483,13 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
             connectionText = "后台已暂停连接，回到 APP 后重新连接"
         } else if active, !userDisconnected {
             if connected { refreshVendorStatus() }
-            // Reconnection remains manual after returning to the foreground.
+            else if workoutPaused, workoutPlan != nil, bluetoothReady {
+                // A paused plan was interrupted by the system. Resume the
+                // connection flow, but keep first launch and idle reconnects manual.
+                resumeConnectionRequested = true
+                autoConnectText = "正在恢复训练，扫描跑步机…"
+                scan()
+            }
         }
     }
 
@@ -942,11 +949,11 @@ extension TreadmillBluetooth: CBCentralManagerDelegate {
         } else {
             devices.append(item)
         }
-        if autoConnectEnabled && !autoConnectAttempted && !connected &&
+        if (autoConnectEnabled || resumeConnectionRequested) && !autoConnectAttempted && !connected &&
             (name.caseInsensitiveCompare("MRK-T10-D59A") == .orderedSame ||
              name.uppercased().hasPrefix("MRK-T10-D59A")) {
             autoConnectAttempted = true
-            autoConnectText = "已发现跑步机，正在自动连接…"
+            autoConnectText = resumeConnectionRequested ? "已发现跑步机，正在恢复连接…" : "已发现跑步机，正在自动连接…"
             connect(peripheral.identifier)
         }
     }
@@ -954,6 +961,7 @@ extension TreadmillBluetooth: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         guard self.peripheral === peripheral, appIsActive, !userDisconnected else { central.cancelPeripheralConnection(peripheral); return }
         connected = true
+        resumeConnectionRequested = false
         connectionText = "已连接 \(peripheral.name ?? peripheral.identifier.uuidString)"
         autoConnectText = "已连接跑步机"
         log("已连接，发现服务")
