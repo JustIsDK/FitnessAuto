@@ -27,7 +27,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     @Published private(set) var speedSupported = false
     @Published private(set) var inclineSupported = false
     @Published private(set) var commandPending = false
-    @Published private(set) var vendorWritePending = false
+    private var vendorWritePending = false
+    private var queuedVendorAction: (() -> Void)?
     @Published var readyForMotion = false
 
     private let serviceUUID = CBUUID(string: "1826")
@@ -92,7 +93,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     var canRefreshVendorStatus: Bool {
-        connected && vendorSubscribed && vendorWriteCharacteristic != nil && !vendorWritePending
+        connected && vendorSubscribed && vendorWriteCharacteristic != nil
     }
 
     var canSendVendorMotion: Bool {
@@ -156,7 +157,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     func refreshVendorStatus() {
-        guard canRefreshVendorStatus else { return }
+        guard canRefreshVendorStatus, !vendorWritePending else { return }
         writeVendor([0x02, 0x51, 0x51, 0x03], label: "读取麦瑞克设备状态")
     }
 
@@ -174,6 +175,10 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
 
     func setVendorSpeed(_ kmh: Double) {
         guard canSendVendorMotion, let incline = vendorIncline else { return }
+        if vendorWritePending {
+            queuedVendorAction = { [weak self] in self?.setVendorSpeed(kmh) }
+            return
+        }
         guard let lastVendorStatus, Date().timeIntervalSince(lastVendorStatus) < 10 else {
             log("设备状态已过期；请先刷新状态")
             return
@@ -185,6 +190,10 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
 
     func setVendorIncline(_ percent: Int) {
         guard canSendVendorMotion, let speed = vendorSpeedTenths else { return }
+        if vendorWritePending {
+            queuedVendorAction = { [weak self] in self?.setVendorIncline(percent) }
+            return
+        }
         guard let lastVendorStatus, Date().timeIntervalSince(lastVendorStatus) < 10 else {
             log("设备状态已过期；请先刷新状态")
             return
@@ -205,7 +214,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     private func writeVendor(_ bytes: [UInt8], label: String) {
-        guard let peripheral, let vendorWriteCharacteristic, canRefreshVendorStatus else { return }
+        guard let peripheral, let vendorWriteCharacteristic, canRefreshVendorStatus,
+              !vendorWritePending else { return }
         vendorWritePending = true
         log("发送 \(label)：\(hex(Data(bytes)))")
         peripheral.writeValue(Data(bytes), for: vendorWriteCharacteristic, type: .withResponse)
@@ -254,13 +264,15 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
                 vendorSpeedTenths = bytes[3]
                 vendorIncline = bytes[4]
                 lastVendorStatus = Date()
-                vendorStatusText = String(format: "运行中：%.1f km/h，坡度 %d%%",
-                                          Double(bytes[3]) / 10, bytes[4])
+                let text = String(format: "运行中：%.1f km/h，坡度 %d%%",
+                                  Double(bytes[3]) / 10, bytes[4])
+                if vendorStatusText != text { vendorStatusText = text }
             } else {
                 vendorSpeedTenths = nil
                 vendorIncline = nil
                 lastVendorStatus = nil
-                vendorStatusText = String(format: "未运行（状态 0x%02X）", bytes[2])
+                let text = String(format: "未运行（状态 0x%02X）", bytes[2])
+                if vendorStatusText != text { vendorStatusText = text }
             }
         } else if bytes[1] == 0x53 {
             log("麦瑞克设置命令已回显；请核对面板实际变化")
@@ -322,6 +334,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     private func resetConnection() {
+        queuedVendorAction = nil
         vendorStatusTimer?.invalidate()
         vendorStatusTimer = nil
         connected = false
@@ -626,6 +639,7 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
         if characteristic.uuid == vendorWriteUUID {
             vendorWritePending = false
             if let error {
+                queuedVendorAction = nil
                 vendorTargetPending = false
                 vendorInitialQueryPending = false
                 vendorHandshakePending = false
@@ -641,6 +655,9 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
                 vendorInitialQueryPending = false
                 refreshVendorStatus()
             }
+            let action = queuedVendorAction
+            queuedVendorAction = nil
+            action?()
             return
         }
         if characteristic == handshakeCharacteristic || characteristic.uuid == handshakeUUID ||
