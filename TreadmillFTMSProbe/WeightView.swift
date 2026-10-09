@@ -39,16 +39,13 @@ struct WeightView: View {
                         inputFocused = false
                         if scale.active { scale.stop() } else { scale.start(profile: profile) }
                     } label: {
-                        Text(scale.active ? "已连接" : "未连接")
+                        Text(scale.active ? "断开" : "连接")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(scale.active ? AppDesign.accent : .secondary)
                             .padding(.horizontal, 12).padding(.vertical, 8)
                             .background((scale.active ? AppDesign.accent : Color.secondary).opacity(0.12), in: Capsule())
                     }
                 }.padding(.vertical, 4)
-                Text(scale.status).font(.subheadline)
-                Text("点击状态按钮连接或断开，站上秤即可开始测量。")
-                    .font(.footnote).foregroundStyle(.secondary)
             }
             Section("本次测量") {
                 MetricTile(title: "本次体重", value: scale.reading.map { String(format: "%.2f", $0.kilograms) } ?? "—", unit: "kg", icon: "scalemass")
