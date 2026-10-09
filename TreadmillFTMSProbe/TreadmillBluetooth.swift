@@ -7,6 +7,46 @@ struct DiscoveredTreadmill: Identifiable {
     let rssi: Int
 }
 
+struct WorkoutStep: Identifiable {
+    let id: Int
+    let start: Int
+    let duration: Int
+    let title: String
+    let speed: Double
+    let incline: Int
+}
+
+struct WorkoutPlan: Identifiable {
+    let id: Int
+    let title: String
+    let steps: [WorkoutStep]
+    var duration: Int { steps.reduce(0) { $0 + $1.duration } }
+    func stepIndex(at elapsed: Int) -> Int? {
+        steps.firstIndex { elapsed >= $0.start && elapsed < $0.start + $0.duration }
+    }
+    static let presets: [WorkoutPlan] = {
+        var first = [WorkoutStep(id: 0, start: 0, duration: 300, title: "热身", speed: 5, incline: 0)]
+        for round in 0..<4 {
+            for (minute, incline) in [8, 10, 12, 14, 6].enumerated() {
+                first.append(WorkoutStep(id: first.count, start: 300 + round * 300 + minute * 60,
+                                         duration: 60, title: "第\(round + 1)轮·第\(minute + 1)分钟",
+                                         speed: 5.5, incline: incline))
+            }
+        }
+        first.append(WorkoutStep(id: first.count, start: 1500, duration: 300, title: "冷身", speed: 4, incline: 0))
+        var second = [WorkoutStep(id: 0, start: 0, duration: 600, title: "爬坡热身", speed: 4, incline: 15)]
+        for round in 0..<4 {
+            second.append(WorkoutStep(id: second.count, start: 600 + round * 420, duration: 240,
+                                      title: "第\(round + 1)轮·跑", speed: 5, incline: 15))
+            second.append(WorkoutStep(id: second.count, start: 840 + round * 420, duration: 180,
+                                      title: "第\(round + 1)轮·走", speed: 4, incline: 15))
+        }
+        second.append(WorkoutStep(id: second.count, start: 2280, duration: 300, title: "放松", speed: 4, incline: 15))
+        return [WorkoutPlan(id: 1, title: "方案一 · 30 分钟", steps: first),
+                WorkoutPlan(id: 2, title: "方案二 · 43 分钟", steps: second)]
+    }()
+}
+
 final class TreadmillBluetooth: NSObject, ObservableObject {
     @Published private(set) var devices: [DiscoveredTreadmill] = []
     @Published private(set) var connectionText = "等待蓝牙启动"
@@ -30,6 +70,113 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private var vendorWritePending = false
     private var queuedVendorAction: (() -> Void)?
     @Published var readyForMotion = false
+    @Published private(set) var workoutActive = false
+    @Published private(set) var workoutPaused = false
+    @Published private(set) var workoutElapsed = 0
+    @Published private(set) var workoutMessage = "选择计划，预览后开始"
+    private var workoutPlan: WorkoutPlan?
+    private var workoutStartedAt: TimeInterval?
+    private var workoutAccumulated: TimeInterval = 0
+    private var workoutStepIndex: Int?
+    private var workoutExpectedTarget: (speed: UInt8, incline: UInt8)?
+    private var workoutConfirmationDeadline: TimeInterval?
+
+    var canStartWorkout: Bool {
+        canSendVendorMotion && !workoutActive &&
+            lastVendorStatus.map { Date().timeIntervalSince($0) < 3 } == true
+    }
+
+    func startWorkout(_ plan: WorkoutPlan) {
+        guard canStartWorkout, plan.steps.allSatisfy({
+            speedRange?.contains($0.speed) == true && inclineRange?.contains(Double($0.incline)) == true
+        }) else {
+            workoutMessage = "请确认跑带已手动启动、状态有效，且计划在设备范围内"
+            return
+        }
+        if vendorWritePending {
+            queuedVendorAction = { [weak self] in self?.startWorkout(plan) }
+            return
+        }
+        workoutPlan = plan
+        workoutAccumulated = 0
+        workoutElapsed = 0
+        workoutStepIndex = nil
+        workoutActive = true
+        workoutPaused = false
+        workoutStartedAt = ProcessInfo.processInfo.systemUptime
+        tickWorkout()
+    }
+
+    func pauseWorkout(_ reason: String = "计时已暂停；跑带继续运行，请用面板停止键停机") {
+        guard workoutActive else { return }
+        if let started = workoutStartedAt {
+            workoutAccumulated += ProcessInfo.processInfo.systemUptime - started
+        }
+        workoutElapsed = Int(workoutAccumulated)
+        workoutStartedAt = nil
+        workoutActive = false
+        workoutPaused = true
+        workoutExpectedTarget = nil
+        workoutConfirmationDeadline = nil
+        queuedVendorAction = nil
+        workoutMessage = reason
+        log("训练计划暂停：\(reason)")
+    }
+
+    func resumeWorkout() {
+        guard workoutPaused, canStartWorkout else { return }
+        if vendorWritePending {
+            queuedVendorAction = { [weak self] in self?.resumeWorkout() }
+            return
+        }
+        workoutActive = true
+        workoutPaused = false
+        workoutStepIndex = nil
+        workoutStartedAt = ProcessInfo.processInfo.systemUptime
+        tickWorkout()
+    }
+
+    func endWorkout() {
+        queuedVendorAction = nil
+        pauseWorkout()
+        workoutPaused = false
+        workoutPlan = nil
+        workoutMessage = "自动调节已结束；请用面板停止键停机"
+    }
+
+    private func tickWorkout() {
+        guard workoutActive, let plan = workoutPlan, let started = workoutStartedAt else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        guard readyForMotion, connected, vendorRunning, vendorAuthorized,
+              lastVendorStatus.map({ Date().timeIntervalSince($0) < 5 }) == true else {
+            pauseWorkout("设备停止、连接或状态异常；计划已暂停，请检查面板")
+            return
+        }
+        if let deadline = workoutConfirmationDeadline, now > deadline {
+            pauseWorkout("设备未确认阶段目标；计划已暂停，请检查面板")
+            return
+        }
+        let elapsed = Int(workoutAccumulated + now - started)
+        guard let index = plan.stepIndex(at: elapsed) else {
+            endWorkout()
+            workoutElapsed = plan.duration
+            workoutMessage = "计划完成；请用面板停止键停机"
+            return
+        }
+        workoutElapsed = elapsed
+        let step = plan.steps[index]
+        if workoutStepIndex != index {
+            // Leave this transition pending until the previous write completes.
+            guard !vendorWritePending, workoutConfirmationDeadline == nil else { return }
+            workoutStepIndex = index
+            workoutExpectedTarget = (UInt8((step.speed * 10).rounded()), UInt8(step.incline))
+            workoutConfirmationDeadline = now + 5
+            sendVendorTarget(speed: workoutExpectedTarget!.speed, incline: workoutExpectedTarget!.incline)
+            log("训练阶段：\(step.title)")
+        }
+        workoutMessage = String(format: "%@ · %.1f km/h · 坡度 %d%% · 本阶段剩余 %d 秒",
+                                step.title, step.speed, step.incline, step.start + step.duration - elapsed)
+    }
 
     private let serviceUUID = CBUUID(string: "1826")
     private let featureUUID = CBUUID(string: "2ACC")
@@ -166,6 +313,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         log("已开启每秒自动查询麦瑞克状态")
         vendorStatusTimer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             guard let self, self.connected, self.vendorAuthorized else { return }
+            self.tickWorkout()
             // Skip this tick if another write is awaiting its ATT confirmation.
             self.refreshVendorStatus()
         }
@@ -174,6 +322,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     func setVendorSpeed(_ kmh: Double) {
+        guard !workoutActive else { return }
         guard canSendVendorMotion, let incline = vendorIncline else { return }
         if vendorWritePending {
             queuedVendorAction = { [weak self] in self?.setVendorSpeed(kmh) }
@@ -189,6 +338,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     func setVendorIncline(_ percent: Int) {
+        guard !workoutActive else { return }
         guard canSendVendorMotion, let speed = vendorSpeedTenths else { return }
         if vendorWritePending {
             queuedVendorAction = { [weak self] in self?.setVendorIncline(percent) }
@@ -210,7 +360,6 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         writeVendor([0x02] + body + [checksum, 0x03],
                     label: String(format: "麦瑞克目标 %.1f km/h、%d%%", Double(speed) / 10, incline))
         vendorTargetPending = true
-        lastVendorStatus = nil
     }
 
     private func writeVendor(_ bytes: [UInt8], label: String) {
@@ -264,11 +413,18 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
                 vendorSpeedTenths = bytes[3]
                 vendorIncline = bytes[4]
                 lastVendorStatus = Date()
+                if let expected = workoutExpectedTarget,
+                   bytes[3] == expected.speed, bytes[4] == expected.incline {
+                    workoutExpectedTarget = nil
+                    workoutConfirmationDeadline = nil
+                    log("设备状态已确认训练阶段目标")
+                }
                 let text = String(format: "运行中：%.1f km/h，坡度 %d%%",
                                   Double(bytes[3]) / 10, bytes[4])
                 if vendorStatusText != text { vendorStatusText = text }
             } else {
                 vendorSpeedTenths = nil
+                pauseWorkout("跑步机已停止或处于倒计时，计划已暂停")
                 vendorIncline = nil
                 lastVendorStatus = nil
                 let text = String(format: "未运行（状态 0x%02X）", bytes[2])
@@ -334,6 +490,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     private func resetConnection() {
+        pauseWorkout("蓝牙连接中断，计划已暂停；重连后需手动继续")
         queuedVendorAction = nil
         vendorStatusTimer?.invalidate()
         vendorStatusTimer = nil
@@ -640,6 +797,7 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             vendorWritePending = false
             if let error {
                 queuedVendorAction = nil
+                pauseWorkout("设备写入失败，计划已暂停")
                 vendorTargetPending = false
                 vendorInitialQueryPending = false
                 vendorHandshakePending = false

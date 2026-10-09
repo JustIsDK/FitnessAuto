@@ -7,12 +7,54 @@ import AppKit
 
 struct ContentView: View {
     @EnvironmentObject private var bluetooth: TreadmillBluetooth
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var selectedPlanID = 1
+    @State private var workoutConfirmed = false
 
     var body: some View {
         NavigationStack {
             List {
+                Section("训练计划") {
+                    Picker("选择方案", selection: $selectedPlanID) {
+                        ForEach(WorkoutPlan.presets) { plan in
+                            Text(plan.title).tag(plan.id)
+                        }
+                    }
+                    .disabled(bluetooth.workoutActive || bluetooth.workoutPaused)
+                    Text(bluetooth.workoutMessage)
+                    Text(String(format: "已进行 %02d:%02d", bluetooth.workoutElapsed / 60,
+                                bluetooth.workoutElapsed % 60)).monospacedDigit()
+                    Toggle("已查看计划、手动启动跑带，并准备开始自动调节", isOn: $workoutConfirmed)
+                        .disabled(bluetooth.workoutActive)
+                    Button("开始计划") {
+                        bluetooth.readyForMotion = workoutConfirmed
+                        bluetooth.startWorkout(WorkoutPlan.presets.first { $0.id == selectedPlanID }!)
+                    }
+                    .disabled(!workoutConfirmed || !bluetooth.canStartWorkout || bluetooth.workoutPaused)
+                    if bluetooth.workoutActive {
+                        Button("暂停计时与自动调节") { bluetooth.pauseWorkout() }
+                    }
+                    if bluetooth.workoutPaused {
+                        Button("继续计划") { bluetooth.resumeWorkout() }
+                            .disabled(!workoutConfirmed || !bluetooth.canStartWorkout)
+                    }
+                    if bluetooth.workoutActive || bluetooth.workoutPaused {
+                        Button("结束自动调节", role: .destructive) { bluetooth.endWorkout() }
+                    }
+                    Text("保持 APP 在前台。暂停、结束和计划完成后，请使用跑步机面板停止键停机。方案二的放松阶段保留原计划坡度 15%。")
+                        .font(.footnote)
+                    DisclosureGroup("查看完整时间表") {
+                        ForEach(WorkoutPlan.presets.first { $0.id == selectedPlanID }!.steps) { step in
+                            Text(String(format: "%02d:%02d–%02d:%02d %@ · %.1f km/h · %d%%",
+                                        step.start / 60, step.start % 60,
+                                        (step.start + step.duration) / 60, (step.start + step.duration) % 60,
+                                        step.title, step.speed, step.incline))
+                                .font(.footnote)
+                        }
+                    }
+                }
                 Section("连接") {
-                    Text("连接诊断版 3 · 识别厂商扩展与控制权拒绝")
+                    Text("FitnessAuto · 预设训练版")
                         .font(.footnote)
                     Text(bluetooth.connectionText)
                     Text(bluetooth.autoConnectText).font(.footnote)
@@ -50,6 +92,7 @@ struct ContentView: View {
                         .font(.footnote)
 
                     Toggle("已确认跑带无人，并已在面板上手动启动", isOn: $bluetooth.readyForMotion)
+                        .disabled(bluetooth.workoutActive)
 
                     Button("② 目标速度 1.0 km/h") { bluetooth.setSpeed(1.0) }
                         .disabled(!bluetooth.readyForMotion || !bluetooth.canSendSpeed)
@@ -102,7 +145,20 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("跑步机 FTMS 验证")
+            .navigationTitle("FitnessAuto")
+            .onChange(of: workoutConfirmed) { _, confirmed in
+                if confirmed { bluetooth.readyForMotion = true }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active {
+                    bluetooth.pauseWorkout("APP 离开前台，计划已暂停；请检查跑步机面板")
+                }
+            }
+            #if os(iOS)
+            .onChange(of: bluetooth.workoutActive) { _, active in
+                UIApplication.shared.isIdleTimerDisabled = active
+            }
+            #endif
         }
     }
 }
