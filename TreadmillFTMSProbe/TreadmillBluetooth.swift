@@ -627,6 +627,15 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
                 vendorHandshakePending = false
                 vendorAuthorized = false
                 log("麦瑞克握手写入失败：\(errorDetails(error))")
+            } else {
+                // The official capture confirms the write at the ATT layer;
+                // some iOS/device combinations do not surface the matching
+                // indication through CoreBluetooth.
+                vendorHandshakePending = false
+                vendorAuthorized = true
+                vendorText = "麦瑞克协议 FFF0：握手写入已确认"
+                log("麦瑞克私有控制握手写入已确认；未等待额外回显")
+                refreshVendorStatus()
             }
             return
         }
