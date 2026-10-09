@@ -16,22 +16,30 @@ struct ContentView: View {
         NavigationStack {
             List {
                 Section {
-                    Label(bluetooth.connectionText, systemImage: bluetooth.connected ? "antenna.radiowaves.left.and.right" : "antenna.radiowaves.left.and.right.slash")
-                        .font(.subheadline)
-                    HStack {
-                        metric("速度", value: bluetooth.liveSpeed.map { String(format: "%.1f", $0) } ?? "—", unit: "km/h")
-                        Spacer()
-                        metric("坡度", value: bluetooth.liveIncline.map(String.init) ?? "—", unit: "%")
+                    PageIntro(eyebrow: "FITNESSAUTO", title: "每一步，都有节奏。", subtitle: "连接跑步机，让计划带着你向前。")
+                }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
+                Section {
+                    VStack(alignment: .leading, spacing: 18) {
+                        HStack {
+                            Label("跑步机", systemImage: "figure.run").font(.headline)
+                            Spacer()
+                            ConnectionBadge(title: bluetooth.connected ? "已连接" : "等待连接", connected: bluetooth.connected)
+                        }
+                        HStack(spacing: 12) {
+                            MetricTile(title: "当前速度", value: bluetooth.liveSpeed.map { String(format: "%.1f", $0) } ?? "—", unit: "km/h", icon: "speedometer")
+                            MetricTile(title: "当前坡度", value: bluetooth.liveIncline.map(String.init) ?? "—", unit: "%", icon: "mountain.2")
+                        }
+                        Text(bluetooth.connectionText).font(.caption).foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
-                    Text(bluetooth.vendorStatusText).font(.caption).foregroundStyle(.secondary)
                 }
-                Section("体重") {
-                    NavigationLink(destination: WeightView()) { Label("体重测量", systemImage: "scalemass") }
-                }
-                Section("训练计划") {
+                Section {
                     Picker("选择计划", selection: $selectedPlanID) {
                         ForEach(library.plans) { Text($0.title).tag($0.id) }
                     }.disabled(bluetooth.workoutBusy || bluetooth.workoutPaused)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(displayPlan.title).font(.title3.weight(.semibold))
+                        Text("按阶段自动调整速度与坡度").font(.caption).foregroundStyle(.secondary)
+                    }.padding(.vertical, 4)
                     HStack {
                         Label("\(displayPlan.duration / 60) 分钟", systemImage: "clock")
                         Spacer()
@@ -51,9 +59,11 @@ struct ContentView: View {
                                 .font(.caption).monospacedDigit()
                         }
                     }
-                    Text(bluetooth.workoutMessage).font(.subheadline)
-                    Toggle("已查看计划、检查安全夹，并准备自动启动", isOn: $workoutConfirmed)
+                    Text(bluetooth.workoutMessage).font(.subheadline).foregroundStyle(.secondary)
+                    Toggle("已准备好开始训练", isOn: $workoutConfirmed)
                         .disabled(bluetooth.workoutBusy)
+                    Text("请先查看计划并检查安全夹，开始训练会自动启动跑步机。")
+                        .font(.caption).foregroundStyle(.secondary)
                     if bluetooth.workoutStarting {
                         ProgressView("正在启动跑步机…")
                     } else if bluetooth.workoutStopping {
@@ -68,12 +78,14 @@ struct ContentView: View {
                             .font(.footnote).foregroundStyle(.secondary)
                     } else if bluetooth.workoutPaused {
                         Button("继续训练", systemImage: "play.fill") { bluetooth.resumeWorkout() }
+                            .buttonStyle(AppPrimaryButtonStyle())
                             .disabled(!workoutConfirmed || !bluetooth.canStartWorkout)
                     } else {
                         Button("开始训练", systemImage: "play.fill") {
                             bluetooth.readyForMotion = workoutConfirmed
                             bluetooth.startWorkout(selectedPlan)
-                        }.disabled(!workoutConfirmed || !bluetooth.canStartWorkout)
+                        }.buttonStyle(AppPrimaryButtonStyle())
+                            .disabled(!workoutConfirmed || !bluetooth.canStartWorkout)
                     }
                     if bluetooth.workoutActive || bluetooth.workoutPaused || bluetooth.workoutStarting {
                         Button("结束计划并停止跑步机", role: .destructive) { bluetooth.endWorkout() }
@@ -83,7 +95,7 @@ struct ContentView: View {
                             bluetooth.endWorkout(reason: "已请求停止")
                         }.disabled(!bluetooth.canStopTreadmill)
                     }
-                    DisclosureGroup("完整阶段表") {
+                    DisclosureGroup("查看完整阶段表") {
                         ForEach(displayPlan.steps) { step in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("\(clock(step.start))–\(clock(step.start + step.duration)) · \(step.title)")
@@ -91,12 +103,12 @@ struct ContentView: View {
                             }.font(.caption).monospacedDigit()
                         }
                     }
-                }
-                Section("运动记录") {
+                } header: { AppSectionTitle(title: "训练计划", icon: "list.bullet.rectangle") }
+                Section {
                     Picker("运动类型", selection: $recorder.running) {
                         Text("室内步行").tag(false)
                         Text("室内跑步").tag(true)
-                    }
+                    }.pickerStyle(.segmented)
                     Text("用于苹果健康的运动分类，可按本次运动调整。")
                         .font(.footnote).foregroundStyle(.secondary)
                     if recorder.recording {
@@ -108,7 +120,7 @@ struct ContentView: View {
                         Button { bluetooth.startRecording() } label: {
                             Text("开始记录").frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
                         .disabled(!bluetooth.canStartRecording)
                         Text(!bluetooth.connected ? "连接跑步机后，启动跑带会自动记录。"
                              : !bluetooth.canStartRecording ? "正在准备连接，请稍候。"
@@ -119,13 +131,27 @@ struct ContentView: View {
                     NavigationLink("运动记录与苹果健康", destination: WorkoutRecordsView())
                     Text("不执行计划也会记录面板启动的运动。停止后保存记录，可选择写入苹果健康。")
                         .font(.footnote).foregroundStyle(.secondary)
-                }
+                } header: { AppSectionTitle(title: "运动记录", icon: "heart.text.square") }
                 Section {
+                    NavigationLink(destination: WeightView()) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("体重测量").font(.headline)
+                                Text("记录体重与 BMI，同步苹果健康").font(.caption).foregroundStyle(.secondary)
+                            }
+                        } icon: { Image(systemName: "scalemass").foregroundStyle(AppDesign.accent) }
+                    }.padding(.vertical, 4)
+                } header: { AppSectionTitle(title: "身体数据", icon: "figure.stand") }
+                Section {
+                    DisclosureGroup("训练须知") {
                     Text("开始计划会启动跑步机；结束或完成计划会发送停止指令。暂停仅暂停自动调节。启停以设备状态确认为准，异常时请使用实体停止键。训练期间保持 APP 在前台；方案二放松阶段保留坡度 15%。")
                         .font(.footnote).foregroundStyle(.secondary)
+                    }
                 }
             }
-            .navigationTitle("FitnessAuto")
+            .appListStyle()
+            .navigationTitle("训练")
+            .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingStagePicker) {
                 NavigationStack {
                     List {
@@ -151,6 +177,7 @@ struct ContentView: View {
                             }.disabled(!bluetooth.canJumpStage)
                         }
                     }
+                    .appListStyle()
                     .navigationTitle("跳转阶段")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -164,8 +191,8 @@ struct ContentView: View {
                 if !ids.contains(selectedPlanID) { selectedPlanID = 1 }
             }
             .toolbar {
-                NavigationLink(destination: PlanLibraryView()) { Image(systemName: "list.bullet.rectangle") }
-                NavigationLink(destination: DiagnosticsView()) { Image(systemName: "wrench.and.screwdriver") }
+                NavigationLink(destination: PlanLibraryView()) { Image(systemName: "list.bullet.rectangle") }.accessibilityLabel("计划库")
+                NavigationLink(destination: DiagnosticsView()) { Image(systemName: "wrench.and.screwdriver") }.accessibilityLabel("连接与诊断")
             }
             .onChange(of: workoutConfirmed) { _, confirmed in bluetooth.readyForMotion = confirmed }
             .onChange(of: scenePhase) { _, phase in
@@ -178,15 +205,7 @@ struct ContentView: View {
             .onChange(of: bluetooth.workoutBusy) { _, busy in UIApplication.shared.isIdleTimerDisabled = busy }
         }
     }
-    private func metric(_ title: String, value: String, unit: String) -> some View {
-        VStack(alignment: .leading) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline) {
-                Text(value).font(.system(size: 34, weight: .semibold, design: .rounded)).monospacedDigit()
-                Text(unit).font(.caption).foregroundStyle(.secondary)
-            }
-        }
-    }
+
 }
 
 func clock(_ seconds: Int) -> String { String(format: "%02d:%02d", seconds / 60, seconds % 60) }
@@ -292,6 +311,7 @@ struct DiagnosticsView: View {
                     }
                 }
         }
+        .appListStyle()
         .navigationTitle("连接与诊断")
         .navigationBarTitleDisplayMode(.inline)
     }

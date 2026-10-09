@@ -66,6 +66,9 @@ struct PlanLibraryView: View {
     @State private var importing = false
     var body: some View {
         List {
+            Section {
+                PageIntro(eyebrow: "YOUR ROUTINE", title: "找到自己的节奏。", subtitle: "选择、编辑或导入一套训练计划。")
+            }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
             Section("导入") {
                 Button("导入计划", systemImage: "square.and.arrow.down") { importing = true }
                 Text("选择 JSON 计划文件，包含计划名称和各阶段的时长、速度、坡度。")
@@ -75,17 +78,14 @@ struct PlanLibraryView: View {
             Section("内置计划 · 可复制后修改") {
                 ForEach(WorkoutPlan.presets) { plan in
                     Button { draft = library.draft(from: plan) } label: {
-                        Label(plan.title, systemImage: "doc.on.doc")
+                        PlanSummaryRow(plan: plan, icon: "doc.on.doc")
                     }
                 }
             }
             Section("自定义计划") {
                 ForEach(library.custom) { plan in
                     Button { draft = plan } label: {
-                        VStack(alignment: .leading) {
-                            Text(plan.title)
-                            Text("\(clock(plan.duration)) · \(plan.steps.count) 个阶段").font(.caption).foregroundStyle(.secondary)
-                        }
+                        PlanSummaryRow(plan: plan, icon: "list.bullet.rectangle")
                     }
                     .swipeActions {
                         Button("删除", role: .destructive) { library.delete(plan.id) }
@@ -95,7 +95,9 @@ struct PlanLibraryView: View {
             }
         }
         .disabled(bluetooth.workoutBusy || bluetooth.workoutPaused)
+        .appListStyle()
         .navigationTitle("计划库")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $draft) { plan in PlanEditor(plan: plan).environmentObject(library) }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
             switch result {
@@ -139,7 +141,9 @@ struct PlanEditor: View {
                 Text("总时长 \(clock(plan.duration)) · 点击编辑可调整阶段顺序或删除。开始前还会核对跑步机实际支持范围。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
+            .appListStyle()
             .navigationTitle("编辑计划")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .primaryAction) { EditButton() }

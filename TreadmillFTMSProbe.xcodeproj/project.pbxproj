@@ -19,6 +19,7 @@
 		B00000000000000000000002 = {isa = PBXBuildFile; fileRef = B00000000000000000000012; };
 		B00000000000000000000003 = {isa = PBXBuildFile; fileRef = B00000000000000000000013; };
 		B00000000000000000000004 = {isa = PBXBuildFile; fileRef = B00000000000000000000014; };
+		B00000000000000000000005 = {isa = PBXBuildFile; fileRef = B00000000000000000000015; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,6 +36,7 @@
 		B00000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleBluetooth.swift; sourceTree = "<group>"; };
 		B00000000000000000000013 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightView.swift; sourceTree = "<group>"; };
 		B00000000000000000000014 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightHealthStore.swift; sourceTree = "<group>"; };
+		B00000000000000000000015 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDesign.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +69,7 @@
 				A00000000000000000000028,
 				B00000000000000000000013,
 				B00000000000000000000014,
+				B00000000000000000000015,
 				B00000000000000000000012,
 				B00000000000000000000011,
 				A00000000000000000000027,
@@ -159,6 +162,7 @@
 				A00000000000000000000018,
 				B00000000000000000000003,
 				B00000000000000000000004,
+				B00000000000000000000005,
 				B00000000000000000000002,
 				B00000000000000000000001,
 				A00000000000000000000017,
@@ -193,7 +197,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.TreadmillFTMSProbe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				MARKETING_VERSION = 1.0;
-				CURRENT_PROJECT_VERSION = 20261009.3;
+				CURRENT_PROJECT_VERSION = 20261009.4;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -225,7 +229,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.TreadmillFTMSProbe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				MARKETING_VERSION = 1.0;
-				CURRENT_PROJECT_VERSION = 20261009.3;
+				CURRENT_PROJECT_VERSION = 20261009.4;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";

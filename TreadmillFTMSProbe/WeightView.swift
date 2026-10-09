@@ -28,7 +28,15 @@ struct WeightView: View {
     }
     var body: some View {
         List {
-            Section("沃莱 · 蚂蚁阿福专用秤") {
+            Section {
+                PageIntro(eyebrow: "BODY METRICS", title: "看见身体的变化。", subtitle: "每次测量，留下一份清晰的记录。")
+            }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
+            Section {
+                HStack {
+                    Label("沃莱体脂秤", systemImage: "scalemass").font(.headline)
+                    Spacer()
+                    ConnectionBadge(title: scale.active ? "已连接" : "未连接", connected: scale.active)
+                }.padding(.vertical, 4)
                 Text(scale.status).font(.subheadline)
                 Text("请先退出蚂蚁阿福的秤连接页面，再踩秤唤醒。支持 AFU-WL-TZ-A1，无需在系统蓝牙列表中配对。")
                     .font(.footnote).foregroundStyle(.secondary)
@@ -39,11 +47,8 @@ struct WeightView: View {
                 }
             }
             Section("本次测量") {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(scale.reading.map { String(format: "%.2f", $0.kilograms) } ?? "—")
-                        .font(.system(size: 40, weight: .semibold, design: .rounded)).monospacedDigit()
-                    Text("kg").foregroundStyle(.secondary)
-                }
+                MetricTile(title: "本次体重", value: scale.reading.map { String(format: "%.2f", $0.kilograms) } ?? "—", unit: "kg", icon: "scalemass")
+                    .listRowSeparator(.hidden)
                 Text(scale.reading?.stable == true ? "体重已稳定，可保存" : "等待体重稳定")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
@@ -54,10 +59,11 @@ struct WeightView: View {
                 if let height, let reading = scale.reading, let bmi = ScaleReading.bmi(weight: reading.kilograms, heightCm: height) {
                     LabeledContent("BMI", value: String(format: "%.1f", bmi))
                 } else { LabeledContent("BMI", value: "填写身高后计算") }
-                LabeledContent("体脂测量", value: scale.reading?.hasImpedance == true ? "已收到阻抗数据" : "尚未收到有效阻抗")
-                LabeledContent("体脂率", value: scale.reading?.hasImpedance == true ? "数据已收到，算法待解析" : "等待测量数据")
-                Text("BMI 根据体重和身高计算。体脂率的计算尚未验证，本版不显示估算值。")
-                    .font(.footnote).foregroundStyle(.secondary)
+                DisclosureGroup("体脂测量状态") {
+                    LabeledContent("阻抗", value: scale.reading?.hasImpedance == true ? "已收到数据" : "尚未收到有效数据")
+                    Text("体脂率解析暂未完成。当前记录体重与 BMI，BMI 根据体重和填写的身高计算。")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 Button(scale.saved ? "本次测量已保存" : "保存本次测量") {
                     inputFocused = false
                     scale.save(heightCm: height)
@@ -65,6 +71,7 @@ struct WeightView: View {
                         Task { await health.save(record) }
                     }
                 }
+                    .buttonStyle(AppPrimaryButtonStyle())
                     .disabled(!scale.canSave)
                 Text("记录保存在本机；健康授权后可自动同步体重与 BMI。离开此页面或进入后台会断开体脂秤。")
                     .font(.footnote).foregroundStyle(.secondary)
@@ -82,7 +89,8 @@ struct WeightView: View {
                 Text("写入前检查相近记录并提示可能重复。检查依赖健康读取权限；建议只开启一个 APP 的健康同步。删除本机记录不会删除健康里的数据。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
-            Section("体脂测量资料（实验）") {
+            Section("个人资料") {
+                DisclosureGroup("测量资料与设备设置") {
                 Text("体重通知不需要初始化；体脂测量可能需要个人资料。填写与蚂蚁阿福一致的资料后应用，再离秤重新裸脚站稳测量。资料字段仍需真机核对。")
                     .font(.footnote).foregroundStyle(.secondary)
                 Button {
@@ -120,9 +128,16 @@ struct WeightView: View {
                     if let profile { scale.prepareComposition(profile) }
                 }.disabled(!scale.active || profile == nil)
                 Text(scale.compositionStatus).font(.footnote).foregroundStyle(.secondary)
+                }
             }
             Section("测量记录") {
-                if scale.records.isEmpty { Text("暂无记录").foregroundStyle(.secondary) }
+                if scale.records.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("还没有测量记录", systemImage: "chart.line.uptrend.xyaxis").font(.headline)
+                        Text("连接秤完成测量后，体重与 BMI 会保存在这里。")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }.padding(.vertical, 12)
+                }
                 ForEach(scale.records) { record in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -146,7 +161,9 @@ struct WeightView: View {
                 }
             }
         }
+        .appListStyle()
         .navigationTitle("体重测量")
+        .navigationBarTitleDisplayMode(.inline)
         .scrollDismissesKeyboard(.interactively)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {

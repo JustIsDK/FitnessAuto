@@ -12,6 +12,7 @@ struct TreadmillFTMSProbeApp: App {
                 .environmentObject(bluetooth)
                 .environmentObject(library)
                 .environmentObject(bluetooth.recorder)
+                .tint(AppDesign.accent)
         }
     }
 }

@@ -225,6 +225,9 @@ struct WorkoutRecordsView: View {
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         List {
+            Section {
+                PageIntro(eyebrow: "YOUR PROGRESS", title: "每一次，都算数。", subtitle: "回顾运动记录，把进步留在苹果健康。")
+            }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
             Section("苹果健康") {
                 Text(recorder.status).font(.subheadline)
                 Button(recorder.healthAuthorized ? "已授权" : recorder.healthPartiallyAuthorized ? "补充健康授权" : "授权苹果健康") {
@@ -234,18 +237,26 @@ struct WorkoutRecordsView: View {
                     Text("部分写入权限未开启，可在健康 APP 的应用权限中调整。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                DisclosureGroup("同步与记录说明") {
                 Text("写入前检查已有运动，疑似重复时提示确认。需要允许读取运动记录；若未允许读取或其他 APP 稍后写入，仍可能重复。建议只让一个 APP 写入苹果健康。")
                     .font(.footnote).foregroundStyle(.secondary)
                 Text("时长来自已确认运行的蓝牙观测；距离和热量仅使用跑步机标准运动数据。缺失字段不会猜测或写入。锁屏、断线会结束当前记录；训练继续时创建新记录。")
                     .font(.footnote).foregroundStyle(.secondary)
+                }
             }
             Section("本机运动记录") {
-                if recorder.records.isEmpty { Text("结束一次记录后，会显示在这里").foregroundStyle(.secondary) }
+                if recorder.records.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("从第一次运动开始", systemImage: "figure.walk").font(.headline)
+                        Text("跑步机停止后，本次运动记录会显示在这里。")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }.padding(.vertical, 12)
+                }
                 ForEach(recorder.records) { record in
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(record.title).font(.headline)
+                        Label(record.title, systemImage: record.running ? "figure.run" : "figure.walk").font(.headline)
                         if let start = record.start { Text(start, format: .dateTime.month().day().hour().minute()).font(.caption) }
-                        Text("\(record.running ? "室内跑步" : "室内步行") · \(clock(Int(record.duration)))")
+                        Text("\(record.running ? "室内跑步" : "室内步行") · \(clock(Int(record.duration)))").font(.subheadline).monospacedDigit()
                         Text(record.distanceMeters.map { String(format: "距离 %.2f km", $0 / 1000) } ?? "距离：设备未提供连续有效数据")
                             .font(.caption).foregroundStyle(.secondary)
                         Text(record.energyKcal.map { String(format: "消耗热量 %.0f kcal", $0) } ?? "消耗热量：设备未提供连续有效数据")
@@ -256,7 +267,9 @@ struct WorkoutRecordsView: View {
                     }.padding(.vertical, 4)
                 }
             }
-        }.navigationTitle("运动记录")
+        }.appListStyle()
+            .navigationTitle("运动记录")
+            .navigationBarTitleDisplayMode(.inline)
             .onAppear { recorder.refreshHealthAuthorization() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { recorder.refreshHealthAuthorization() }
