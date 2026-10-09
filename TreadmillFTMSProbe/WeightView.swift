@@ -115,6 +115,7 @@ struct WeightView: View {
                 }.onDelete(perform: scale.delete)
             }
             Section {
+                LabeledContent("APP 构建", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "未知")
                 DisclosureGroup("连接诊断") {
                     Text(scale.logs.joined(separator: "\n")).font(.caption.monospaced()).textSelection(.enabled)
                     ShareLink(item: scale.logs.joined(separator: "\n")) { Label("导出诊断日志", systemImage: "square.and.arrow.up") }
