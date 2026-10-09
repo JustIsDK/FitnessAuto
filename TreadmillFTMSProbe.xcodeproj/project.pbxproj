@@ -11,6 +11,9 @@
 		A00000000000000000000012 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000022 /* ContentView.swift */; };
 		A00000000000000000000013 /* TreadmillBluetooth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000023 /* TreadmillBluetooth.swift */; };
 		A00000000000000000000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000024 /* Assets.xcassets */; };
+		A00000000000000000000015 = {isa = PBXBuildFile; fileRef = A00000000000000000000025; };
+		A00000000000000000000016 = {isa = PBXBuildFile; fileRef = A00000000000000000000026; };
+		A00000000000000000000017 = {isa = PBXBuildFile; fileRef = A00000000000000000000027; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +22,9 @@
 		A00000000000000000000022 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A00000000000000000000023 /* TreadmillBluetooth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreadmillBluetooth.swift; sourceTree = "<group>"; };
 		A00000000000000000000024 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A00000000000000000000025 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLibrary.swift; sourceTree = "<group>"; };
+		A00000000000000000000026 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutData.swift; sourceTree = "<group>"; };
+		A00000000000000000000027 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutRecorder.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -47,6 +53,9 @@
 				A00000000000000000000022 /* ContentView.swift */,
 				A00000000000000000000023 /* TreadmillBluetooth.swift */,
 				A00000000000000000000024 /* Assets.xcassets */,
+				A00000000000000000000025,
+				A00000000000000000000027,
+				A00000000000000000000026,
 			);
 			path = TreadmillFTMSProbe;
 			sourceTree = "<group>";
@@ -90,6 +99,7 @@
 				TargetAttributes = {
 					A00000000000000000000050 = {
 						CreatedOnToolsVersion = 16.0;
+						SystemCapabilities = { com.apple.HealthKit = { enabled = 1; }; };
 					};
 				};
 			};
@@ -130,6 +140,9 @@
 				A00000000000000000000011 /* App.swift in Sources */,
 				A00000000000000000000012 /* ContentView.swift in Sources */,
 				A00000000000000000000013 /* TreadmillBluetooth.swift in Sources */,
+				A00000000000000000000015,
+				A00000000000000000000017,
+				A00000000000000000000016,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -147,9 +160,11 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "FTMS 跑步机验证";
+				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
+				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将你选择的跑步机运动记录、距离和热量写入苹果健康。";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机并测试标准蓝牙速度和坡度控制。";
-				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -174,9 +189,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "FTMS 跑步机验证";
+				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
+				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将你选择的跑步机运动记录、距离和热量写入苹果健康。";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机并测试标准蓝牙速度和坡度控制。";
-				IPHONEOS_DEPLOYMENT_TARGET = "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
