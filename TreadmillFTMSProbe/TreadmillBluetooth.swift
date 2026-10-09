@@ -38,9 +38,11 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private let statusUUID = CBUUID(string: "2ADA")
     private let treadmillDataUUID = CBUUID(string: "2ACD")
     private let extensionUUID = CBUUID(string: "D18D2C10-C44C-11E8-A355-529269FB1459")
-    private let vendorServiceUUID = CBUUID(string: "F0FF")
-    private let vendorNotifyUUID = CBUUID(string: "F1FF")
-    private let vendorWriteUUID = CBUUID(string: "F2FF")
+    // PacketLogger shows these 16-bit UUIDs in little-endian ATT bytes (f0 ff,
+    // f1 ff, f2 ff); CoreBluetooth UUID strings are written as FFF0/FFF1/FFF2.
+    private let vendorServiceUUID = CBUUID(string: "FFF0")
+    private let vendorNotifyUUID = CBUUID(string: "FFF1")
+    private let vendorWriteUUID = CBUUID(string: "FFF2")
 
     private var central: CBCentralManager!
     private var discovered: [UUID: CBPeripheral] = [:]
@@ -397,8 +399,8 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
         if let service = peripheral.services?.first(where: { $0.uuid == vendorServiceUUID }) {
             peripheral.discoverCharacteristics([vendorNotifyUUID, vendorWriteUUID], for: service)
         } else {
-            vendorText = "麦瑞克协议 F0FF：未发现"
-            log("未找到麦瑞克私有服务 F0FF")
+            vendorText = "麦瑞克协议 FFF0：未发现"
+            log("未找到麦瑞克私有服务 FFF0")
         }
     }
 
@@ -411,12 +413,12 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
                 $0.properties.contains(.write) }
             guard let notify = characteristics.first(where: { $0.uuid == vendorNotifyUUID &&
                 $0.properties.contains(.notify) }), vendorWriteCharacteristic != nil else {
-                vendorText = "麦瑞克协议：缺少 F1FF 通知或 F2FF 写入"
+                vendorText = "麦瑞克协议：缺少 FFF1 通知或 FFF2 写入"
                 log(vendorText)
                 return
             }
-            vendorText = "麦瑞克协议 F0FF：已发现"
-            log("发现 F0FF / F1FF 通知 / F2FF 写入")
+            vendorText = "麦瑞克协议 FFF0：已发现"
+            log("发现 FFF0 / FFF1 通知 / FFF2 写入")
             peripheral.setNotifyValue(true, for: notify)
             return
         }
