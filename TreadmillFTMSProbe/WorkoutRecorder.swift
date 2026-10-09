@@ -267,16 +267,6 @@ struct WorkoutRecordsView: View {
                     }.padding(.vertical, 4)
                 }
             }
-            Section {
-                NavigationLink(destination: DiagnosticsView()) {
-                    Label("连接与诊断", systemImage: "wrench.and.screwdriver")
-                }
-                NavigationLink(destination: AboutView()) {
-                    Label("关于 FitnessAuto", systemImage: "info.circle")
-                }
-            } footer: {
-                Text("连接、版本和设备诊断信息集中在这里。")
-            }
         }.appListStyle()
             .navigationTitle("运动记录")
             .navigationBarTitleDisplayMode(.inline)
@@ -295,15 +285,30 @@ struct WorkoutRecordsView: View {
     }
 }
 
-struct AboutView: View {
+struct SettingsView: View {
+    @EnvironmentObject private var recorder: WorkoutRecorder
     @EnvironmentObject private var scale: ScaleBluetooth
+    @AppStorage("fitnessauto.weight.health.auto") private var autoWeightHealth = true
     var body: some View {
         List {
             Section {
-                PageIntro(eyebrow: "ABOUT FITNESSAUTO", title: "关于这款应用。", subtitle: "查看版本信息和设备诊断。")
+                PageIntro(eyebrow: "SETTINGS", title: "把应用调成适合你的样子。", subtitle: "管理权限、个人资料和设备连接。")
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
-            Section("应用") {
+            Section("开关与权限") {
+                Toggle("自动同步体重到苹果健康", isOn: $autoWeightHealth)
+                Button(recorder.healthAuthorized ? "苹果健康已授权" : "授权苹果健康") {
+                    Task { await recorder.authorize() }
+                }.disabled(recorder.saving || recorder.healthAuthorized)
+                Text(recorder.status).font(.footnote).foregroundStyle(.secondary)
+            }
+            Section("个人信息") {
+                NavigationLink(destination: WeightView()) {
+                    Label("身高、出生年月与性别", systemImage: "person.text.rectangle")
+                }
+            }
+            Section("APP 信息") {
                 LabeledContent("APP 构建", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "未知")
+                LabeledContent("版本", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "未知")
             }
             Section("设备诊断") {
                 NavigationLink(destination: DiagnosticsView()) {
@@ -323,7 +328,7 @@ struct AboutView: View {
             }
         }
         .appListStyle()
-        .navigationTitle("关于")
+        .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

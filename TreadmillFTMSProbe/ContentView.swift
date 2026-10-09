@@ -181,8 +181,6 @@ struct ContentView: View {
                 if !ids.contains(selectedPlanID) { selectedPlanID = 1 }
             }
             .toolbar {
-                NavigationLink(destination: PlanLibraryView()) { Image(systemName: "list.bullet.rectangle") }.accessibilityLabel("计划库")
-                NavigationLink(destination: DiagnosticsView()) { Image(systemName: "wrench.and.screwdriver") }.accessibilityLabel("连接与诊断")
             }
             .onChange(of: workoutConfirmed) { _, confirmed in bluetooth.readyForMotion = confirmed }
             .onChange(of: scenePhase) { _, phase in
@@ -210,6 +208,11 @@ struct ContentView: View {
                 WorkoutRecordsView()
             }
             .tabItem { Label("运动记录", systemImage: "heart.text.square") }
+
+            NavigationStack {
+                SettingsView()
+            }
+            .tabItem { Label("设置", systemImage: "gearshape") }
         }
     }
 
