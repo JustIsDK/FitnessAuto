@@ -49,6 +49,9 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     // three fields byte-swapped. Keep both representations for discovery.
     private let handshakeServiceUUIDLE = CBUUID(string: "52414348-4D45-8888-6666-0080554C5559")
     private let handshakeUUIDLE = CBUUID(string: "52414348-4D45-8888-6666-0000554C5559")
+    // Exact UUIDs reported by CoreBluetooth on MRK-T10-D59A.
+    private let handshakeServiceUUIDExact = CBUUID(string: "59554C55-8000-6666-8888-4D4552414348")
+    private let handshakeUUIDExact = CBUUID(string: "59554C55-0000-6666-8888-4D4552414348")
 
     private var central: CBCentralManager!
     private var discovered: [UUID: CBPeripheral] = [:]
@@ -443,9 +446,10 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             log("未找到麦瑞克私有服务 FFF0")
         }
         if let service = peripheral.services?.first(where: {
-            $0.uuid == handshakeServiceUUID || $0.uuid == handshakeServiceUUIDLE
+            $0.uuid == handshakeServiceUUID || $0.uuid == handshakeServiceUUIDLE ||
+            $0.uuid == handshakeServiceUUIDExact
         }) {
-            peripheral.discoverCharacteristics([handshakeUUID, handshakeUUIDLE], for: service)
+            peripheral.discoverCharacteristics([handshakeUUID, handshakeUUIDLE, handshakeUUIDExact], for: service)
         } else {
             log("未找到麦瑞克握手服务 \(handshakeServiceUUID)")
         }
@@ -455,9 +459,10 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
                     didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         if let error { log("发现特征失败：\(error.localizedDescription)"); return }
         let characteristics = service.characteristics ?? []
-        if service.uuid == handshakeServiceUUID || service.uuid == handshakeServiceUUIDLE {
+        if service.uuid == handshakeServiceUUID || service.uuid == handshakeServiceUUIDLE ||
+            service.uuid == handshakeServiceUUIDExact {
             guard let characteristic = characteristics.first(where: {
-                $0.uuid == handshakeUUID || $0.uuid == handshakeUUIDLE
+                $0.uuid == handshakeUUID || $0.uuid == handshakeUUIDLE || $0.uuid == handshakeUUIDExact
             }) else {
                 log("未找到麦瑞克握手特征")
                 return
@@ -517,7 +522,8 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             vendorSubscribed = characteristic.isNotifying
             log(vendorSubscribed ? "麦瑞克状态通知已订阅" : "麦瑞克状态通知未订阅")
             startVendorHandshakeIfReady()
-        } else if characteristic.uuid == handshakeUUID || characteristic.uuid == handshakeUUIDLE {
+        } else if characteristic.uuid == handshakeUUID || characteristic.uuid == handshakeUUIDLE ||
+                    characteristic.uuid == handshakeUUIDExact {
             handshakeSubscribed = characteristic.isNotifying
             log(handshakeSubscribed ? "麦瑞克握手返回已订阅" : "麦瑞克握手返回未订阅")
             startVendorHandshakeIfReady()
@@ -580,7 +586,7 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             log("设备状态：\(hex(value))")
         case vendorNotifyUUID:
             handleVendorNotification(value)
-        case handshakeUUID, handshakeUUIDLE:
+        case handshakeUUID, handshakeUUIDLE, handshakeUUIDExact:
             handleVendorNotification(value)
         default: break
         }
@@ -606,7 +612,8 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             }
             return
         }
-        if characteristic.uuid == handshakeUUID || characteristic.uuid == handshakeUUIDLE {
+        if characteristic.uuid == handshakeUUID || characteristic.uuid == handshakeUUIDLE ||
+            characteristic.uuid == handshakeUUIDExact {
             vendorWritePending = false
             if let error {
                 vendorHandshakePending = false
