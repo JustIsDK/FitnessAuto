@@ -15,6 +15,9 @@
 		A00000000000000000000016 = {isa = PBXBuildFile; fileRef = A00000000000000000000026; };
 		A00000000000000000000017 = {isa = PBXBuildFile; fileRef = A00000000000000000000027; };
 		A00000000000000000000018 = {isa = PBXBuildFile; fileRef = A00000000000000000000028; };
+		B00000000000000000000001 = {isa = PBXBuildFile; fileRef = B00000000000000000000011; };
+		B00000000000000000000002 = {isa = PBXBuildFile; fileRef = B00000000000000000000012; };
+		B00000000000000000000003 = {isa = PBXBuildFile; fileRef = B00000000000000000000013; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +30,9 @@
 		A00000000000000000000026 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutData.swift; sourceTree = "<group>"; };
 		A00000000000000000000027 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutRecorder.swift; sourceTree = "<group>"; };
 		A00000000000000000000028 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanImport.swift; sourceTree = "<group>"; };
+		B00000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleProtocol.swift; sourceTree = "<group>"; };
+		B00000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleBluetooth.swift; sourceTree = "<group>"; };
+		B00000000000000000000013 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,6 +63,9 @@
 				A00000000000000000000024 /* Assets.xcassets */,
 				A00000000000000000000025,
 				A00000000000000000000028,
+				B00000000000000000000013,
+				B00000000000000000000012,
+				B00000000000000000000011,
 				A00000000000000000000027,
 				A00000000000000000000026,
 			);
@@ -145,6 +154,9 @@
 				A00000000000000000000013 /* TreadmillBluetooth.swift in Sources */,
 				A00000000000000000000015,
 				A00000000000000000000018,
+				B00000000000000000000003,
+				B00000000000000000000002,
+				B00000000000000000000001,
 				A00000000000000000000017,
 				A00000000000000000000016,
 			);
@@ -168,7 +180,7 @@
 				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取已有运动记录，在写入前检查同一时间段是否已被其他 APP 记录。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将你选择的跑步机运动记录、距离和热量写入苹果健康。";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机并测试标准蓝牙速度和坡度控制。";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -198,7 +210,7 @@
 				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取已有运动记录，在写入前检查同一时间段是否已被其他 APP 记录。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将你选择的跑步机运动记录、距离和热量写入苹果健康。";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机并测试标准蓝牙速度和坡度控制。";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

@@ -24,6 +24,9 @@ struct ContentView: View {
                     }.padding(.vertical, 8)
                     Text(bluetooth.vendorStatusText).font(.caption).foregroundStyle(.secondary)
                 }
+                Section("体重") {
+                    NavigationLink(destination: WeightView()) { Label("体重测量", systemImage: "scalemass") }
+                }
                 Section("训练计划") {
                     Picker("选择计划", selection: $selectedPlanID) {
                         ForEach(library.plans) { Text($0.title).tag($0.id) }

@@ -71,3 +71,7 @@ xcodebuild -quiet -project TreadmillFTMSProbe.xcodeproj -scheme TreadmillFTMSPro
 - 扩展 `D18D2C10-C44C-11E8-A355-529269FB1459` 仅识别，不写未知解锁码。协议来自本机抓包，不直接用于其他型号。
 
 参考：[Bluetooth SIG FTMS](https://www.bluetooth.com/specifications/specs/fitness-machine-service-1-0-1/)。仓库不保存含其他设备流量的原始抓包。
+
+## 体重测量（实验版）
+
+首页新增独立“体重测量”入口，针对蚂蚁阿福专用沃莱 AFU-WL-TZ-A1，支持订阅实时体重、稳定后手动保存本机记录、按填写身高计算 BMI。体脂率暂未可靠解析，体重暂不写入苹果健康。连接及完整测量流程仍待真机验证。协议事实、限制和操作步骤见 [Docs/WeightProtocol.md](Docs/WeightProtocol.md)，解析检查运行 `python3 Tests/verify_scale.py`。
