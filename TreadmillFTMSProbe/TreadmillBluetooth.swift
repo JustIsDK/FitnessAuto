@@ -45,6 +45,10 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private let vendorWriteUUID = CBUUID(string: "FFF2")
     private let handshakeServiceUUID = CBUUID(string: "48434152-454D-8888-6666-0080554C5559")
     private let handshakeUUID = CBUUID(string: "48434152-454D-8888-6666-0000554C5559")
+    // Some CoreBluetooth stacks expose the 128-bit ATT UUID with the first
+    // three fields byte-swapped. Keep both representations for discovery.
+    private let handshakeServiceUUIDLE = CBUUID(string: "52414348-4D45-8888-6666-0080554C5559")
+    private let handshakeUUIDLE = CBUUID(string: "52414348-4D45-8888-6666-0000554C5559")
 
     private var central: CBCentralManager!
     private var discovered: [UUID: CBPeripheral] = [:]
@@ -397,7 +401,8 @@ extension TreadmillBluetooth: CBCentralManagerDelegate {
         connectionText = "已连接 \(peripheral.name ?? peripheral.identifier.uuidString)"
         autoConnectText = "已自动连接跑步机"
         log("已连接，发现服务")
-        peripheral.discoverServices([serviceUUID, vendorServiceUUID, handshakeServiceUUID])
+        peripheral.discoverServices([serviceUUID, vendorServiceUUID, handshakeServiceUUID,
+                                     handshakeServiceUUIDLE])
     }
 
     func centralManager(_ central: CBCentralManager,
@@ -433,8 +438,10 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             vendorText = "麦瑞克协议 FFF0：未发现"
             log("未找到麦瑞克私有服务 FFF0")
         }
-        if let service = peripheral.services?.first(where: { $0.uuid == handshakeServiceUUID }) {
-            peripheral.discoverCharacteristics([handshakeUUID], for: service)
+        if let service = peripheral.services?.first(where: {
+            $0.uuid == handshakeServiceUUID || $0.uuid == handshakeServiceUUIDLE
+        }) {
+            peripheral.discoverCharacteristics([handshakeUUID, handshakeUUIDLE], for: service)
         } else {
             log("未找到麦瑞克握手服务 \(handshakeServiceUUID)")
         }
@@ -444,9 +451,11 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
                     didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         if let error { log("发现特征失败：\(error.localizedDescription)"); return }
         let characteristics = service.characteristics ?? []
-        if service.uuid == handshakeServiceUUID {
-            guard let characteristic = characteristics.first(where: { $0.uuid == handshakeUUID }) else {
-                log("未找到麦瑞克握手特征 \(handshakeUUID)")
+        if service.uuid == handshakeServiceUUID || service.uuid == handshakeServiceUUIDLE {
+            guard let characteristic = characteristics.first(where: {
+                $0.uuid == handshakeUUID || $0.uuid == handshakeUUIDLE
+            }) else {
+                log("未找到麦瑞克握手特征")
                 return
             }
             handshakeCharacteristic = characteristic
@@ -504,7 +513,7 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             vendorSubscribed = characteristic.isNotifying
             log(vendorSubscribed ? "麦瑞克状态通知已订阅" : "麦瑞克状态通知未订阅")
             startVendorHandshakeIfReady()
-        } else if characteristic.uuid == handshakeUUID {
+        } else if characteristic.uuid == handshakeUUID || characteristic.uuid == handshakeUUIDLE {
             handshakeSubscribed = characteristic.isNotifying
             log(handshakeSubscribed ? "麦瑞克握手返回已订阅" : "麦瑞克握手返回未订阅")
             startVendorHandshakeIfReady()
@@ -567,7 +576,7 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             log("设备状态：\(hex(value))")
         case vendorNotifyUUID:
             handleVendorNotification(value)
-        case handshakeUUID:
+        case handshakeUUID, handshakeUUIDLE:
             handleVendorNotification(value)
         default: break
         }
@@ -593,7 +602,7 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             }
             return
         }
-        if characteristic.uuid == handshakeUUID {
+        if characteristic.uuid == handshakeUUID || characteristic.uuid == handshakeUUIDLE {
             vendorWritePending = false
             if let error {
                 vendorHandshakePending = false
