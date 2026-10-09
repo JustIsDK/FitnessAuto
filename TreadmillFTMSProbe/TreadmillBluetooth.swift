@@ -121,7 +121,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     @Published private(set) var logs: [CommunicationLog] = []
     @Published private(set) var bluetoothReady = false
     @Published private(set) var connected = false
-    @Published private(set) var autoConnectText = "启动后自动连接已开启"
+    @Published private(set) var autoConnectText = "请手动扫描并选择跑步机"
     @Published private(set) var controlGranted = false
     @Published private(set) var controlSubscribed = false
     @Published private(set) var speedSupported = false
@@ -397,7 +397,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private var central: CBCentralManager!
     private var discovered: [UUID: CBPeripheral] = [:]
     private var peripheral: CBPeripheral?
-    private var autoConnectEnabled = true
+    // The user chooses when this app may claim the treadmill.
+    private var autoConnectEnabled = false
     private var autoConnectAttempted = false
     private var controlCharacteristic: CBCharacteristic?
     private var vendorWriteCharacteristic: CBCharacteristic?
@@ -481,16 +482,16 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
             connectionText = "后台已暂停连接，回到 APP 后重新连接"
         } else if active, !userDisconnected {
             if connected { refreshVendorStatus() }
-            else if peripheral == nil { scan() }
+            // Reconnection remains manual after returning to the foreground.
         }
     }
 
     private func scheduleReconnect() {
-        guard appIsActive, !userDisconnected, bluetoothReady else { return }
+        guard autoConnectEnabled, appIsActive, !userDisconnected, bluetoothReady else { return }
         retryWork?.cancel()
         let delay = min(30, pow(2, Double(min(retryCount, 5))))
         retryCount += 1
-        autoConnectText = "将在 \(Int(delay)) 秒后自动重连；训练需要手动继续"
+        autoConnectText = "连接已断开，请手动扫描并重新连接"
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.appIsActive, !self.userDisconnected, !self.connected else { return }
             self.scan()
@@ -927,11 +928,7 @@ extension TreadmillBluetooth: CBCentralManagerDelegate {
             resetConnection()
             return
         }
-        if appIsActive && !userDisconnected && autoConnectEnabled && !connected && peripheral == nil {
-            autoConnectAttempted = false
-            autoConnectText = "正在自动扫描 MRK-T10-D59A…"
-            scan()
-        }
+        // Do not scan on launch; avoid competing with the official app.
     }
 
     func centralManager(_ central: CBCentralManager,
@@ -958,7 +955,7 @@ extension TreadmillBluetooth: CBCentralManagerDelegate {
         guard self.peripheral === peripheral, appIsActive, !userDisconnected else { central.cancelPeripheralConnection(peripheral); return }
         connected = true
         connectionText = "已连接 \(peripheral.name ?? peripheral.identifier.uuidString)"
-        autoConnectText = "已自动连接跑步机"
+        autoConnectText = "已连接跑步机"
         log("已连接，发现服务")
         // Enumerate all services once. The handshake UUID is 128-bit and
         // appears byte-swapped in some PacketLogger views, so filtering it at

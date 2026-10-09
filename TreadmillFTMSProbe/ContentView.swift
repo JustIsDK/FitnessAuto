@@ -30,8 +30,46 @@ struct ContentView: View {
                             MetricTile(title: "当前坡度", value: bluetooth.liveIncline.map(String.init) ?? "—", unit: "%", icon: "mountain.2")
                         }
                         Text(bluetooth.connectionText).font(.caption).foregroundStyle(.secondary)
+                        if !bluetooth.connected {
+                            Button {
+                                bluetooth.scan()
+                            } label: {
+                                Label("扫描并连接跑步机", systemImage: "antenna.radiowaves.left.and.right")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!bluetooth.bluetoothReady)
+                            if !bluetooth.devices.isEmpty {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("选择设备").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                    ForEach(bluetooth.devices) { device in
+                                        Button {
+                                            bluetooth.connect(device.id)
+                                        } label: {
+                                            HStack {
+                                                Image(systemName: "figure.run").foregroundStyle(AppDesign.accent)
+                                                Text(device.name)
+                                                Spacer()
+                                                Text("\(device.rssi) dBm").font(.caption).foregroundStyle(.secondary)
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(.top, 2)
+                            }
+                        }
                     }.padding(.vertical, 8)
                 }
+                Section {
+                    HStack(spacing: 12) {
+                        NavigationLink(destination: PlanLibraryView()) {
+                            DashboardShortcut(title: "计划库", detail: "编辑与导入", icon: "list.bullet.rectangle")
+                        }
+                        NavigationLink(destination: WorkoutRecordsView()) {
+                            DashboardShortcut(title: "运动记录", detail: "查看进步", icon: "heart.text.square")
+                        }
+                    }
+                } header: { AppSectionTitle(title: "快捷入口", icon: "sparkles") }
                 Section {
                     Picker("选择计划", selection: $selectedPlanID) {
                         ForEach(library.plans) { Text($0.title).tag($0.id) }

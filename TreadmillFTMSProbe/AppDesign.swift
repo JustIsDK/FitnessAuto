@@ -124,3 +124,19 @@ struct PlanSummaryRow: View {
         }.padding(.vertical, 6)
     }
 }
+
+struct DashboardShortcut: View {
+    let title: String
+    let detail: String
+    let icon: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: icon).font(.title3).foregroundStyle(AppDesign.accent)
+            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+            Text(detail).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(AppDesign.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
