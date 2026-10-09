@@ -32,6 +32,10 @@ struct WorkoutPlan: Identifiable, Codable {
     func stepIndex(at elapsed: Int) -> Int? {
         steps.firstIndex { elapsed >= $0.start && elapsed < $0.start + $0.duration }
     }
+    func stageStart(at index: Int) -> Int? {
+        guard validationError == nil, steps.indices.contains(index) else { return nil }
+        return steps[index].start
+    }
     var validationError: String? {
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "请输入计划名称" }
         guard !steps.isEmpty, steps.count <= 100 else { return "计划需要 1–100 个阶段" }
@@ -150,6 +154,40 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     var currentStep: WorkoutStep? {
         guard let plan = currentPlan, let index = plan.stepIndex(at: workoutElapsed) else { return nil }
         return plan.steps[index]
+    }
+    var currentStageIndex: Int? { currentPlan?.stepIndex(at: workoutElapsed) }
+    var canJumpStage: Bool {
+        workoutActive && workoutMotion == nil && appIsActive && readyForMotion && connected &&
+            vendorAuthorized && vendorSubscribed && vendorRunning && !vendorWritePending &&
+            workoutConfirmationDeadline == nil &&
+            lastVendorStatus.map { Date().timeIntervalSince($0) < 3 } == true
+    }
+    var canJumpNextStage: Bool {
+        guard canJumpStage, let plan = currentPlan, let index = currentStageIndex else { return false }
+        return plan.steps.indices.contains(index + 1)
+    }
+    func jumpToNextStage() {
+        guard let index = currentStageIndex else { return }
+        jumpToStage(at: index + 1)
+    }
+    func jumpToStage(at index: Int) {
+        guard canJumpStage, let plan = currentPlan, let start = plan.stageStart(at: index),
+              speedRange?.contains(plan.steps[index].speed) == true,
+              inclineRange?.contains(Double(plan.steps[index].incline)) == true else {
+            workoutMessage = "暂时无法跳转，请等待设备确认当前目标并检查连接状态"
+            return
+        }
+        queuedVendorAction = nil
+        workoutAccumulated = TimeInterval(start)
+        workoutElapsed = start
+        workoutStartedAt = ProcessInfo.processInfo.systemUptime
+        workoutStepIndex = nil
+        workoutExpectedTarget = nil
+        workoutConfirmationDeadline = nil
+        saveCheckpoint()
+        log("手动跳转至第\(index + 1)阶段：\(plan.steps[index].title)，从阶段开头计时")
+        // Reuse normal range-checked writes and subsequent machine-state confirmation.
+        tickWorkout()
     }
     private struct Checkpoint: Codable {
         let plan: WorkoutPlan

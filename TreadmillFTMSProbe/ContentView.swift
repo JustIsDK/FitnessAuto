@@ -8,6 +8,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedPlanID = 1
     @State private var workoutConfirmed = false
+    @State private var showingStagePicker = false
     private var selectedPlan: WorkoutPlan { library.plans.first { $0.id == selectedPlanID } ?? WorkoutPlan.presets[0] }
     private var displayPlan: WorkoutPlan { bluetooth.currentPlan ?? selectedPlan }
 
@@ -39,7 +40,7 @@ struct ContentView: View {
                     if bluetooth.currentPlan != nil {
                         ProgressView(value: Double(bluetooth.workoutElapsed), total: Double(displayPlan.duration))
                         HStack {
-                            Text("已进行 \(clock(bluetooth.workoutElapsed))")
+                            Text("计划进度 \(clock(bluetooth.workoutElapsed))")
                             Spacer()
                             Text("剩余 \(clock(max(0, displayPlan.duration - bluetooth.workoutElapsed)))")
                         }.font(.caption).monospacedDigit()
@@ -59,6 +60,12 @@ struct ContentView: View {
                         ProgressView("正在确认停机…")
                     } else if bluetooth.workoutActive {
                         Button("暂停自动调节", systemImage: "pause.fill") { bluetooth.pauseWorkout() }
+                        Button("下一阶段", systemImage: "forward.end.fill") { bluetooth.jumpToNextStage() }
+                            .disabled(!bluetooth.canJumpNextStage)
+                        Button("跳转到指定阶段", systemImage: "list.number") { showingStagePicker = true }
+                            .disabled(!bluetooth.canJumpStage)
+                        Text("跳转会立即调整速度和坡度，从目标阶段开头计时；运动记录仍按实际运动累计。")
+                            .font(.footnote).foregroundStyle(.secondary)
                     } else if bluetooth.workoutPaused {
                         Button("继续训练", systemImage: "play.fill") { bluetooth.resumeWorkout() }
                             .disabled(!workoutConfirmed || !bluetooth.canStartWorkout)
@@ -119,6 +126,40 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("FitnessAuto")
+            .sheet(isPresented: $showingStagePicker) {
+                NavigationStack {
+                    List {
+                        Section {
+                            Text("选择后立即应用该阶段的参数，并从阶段开头重新计时。")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                        ForEach(Array(displayPlan.steps.enumerated()), id: \.element.id) { index, step in
+                            Button {
+                                bluetooth.jumpToStage(at: index)
+                                showingStagePicker = false
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text("第\(index + 1)阶段 · \(step.title)")
+                                        if bluetooth.currentStageIndex == index {
+                                            Text("当前").font(.caption).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Text(String(format: "%.1f km/h · 坡度 %d%% · %@", step.speed, step.incline, clock(step.duration)))
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }.disabled(!bluetooth.canJumpStage)
+                        }
+                    }
+                    .navigationTitle("跳转阶段")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("取消") { showingStagePicker = false }
+                        }
+                    }
+                }
+            }
             .onChange(of: library.plans.map(\.id)) { _, ids in
                 if !ids.contains(selectedPlanID) { selectedPlanID = 1 }
             }

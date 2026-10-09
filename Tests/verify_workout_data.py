@@ -53,8 +53,17 @@ for preset in WorkoutPlan.presets {
     let decoded = try JSONDecoder().decode(WorkoutPlan.self, from: JSONEncoder().encode(preset))
     assert(decoded.duration == preset.duration && decoded.steps.count == preset.steps.count)
 }
+for preset in WorkoutPlan.presets {
+    assert(preset.stageStart(at: -1) == nil)
+    assert(preset.stageStart(at: preset.steps.count) == nil)
+    for index in preset.steps.indices {
+        let start = preset.stageStart(at: index)!
+        assert(preset.stepIndex(at: start) == index)
+        assert(preset.steps[index].start + preset.steps[index].duration - start == preset.steps[index].duration)
+    }
+}
 var plan = WorkoutPlan.presets[0]
-plan.steps[0].duration = 0; assert(plan.validationError != nil)
+plan.steps[0].duration = 0; assert(plan.validationError != nil); assert(plan.stageStart(at: 0) == nil)
 plan = WorkoutPlan.presets[0]; plan.steps[0].speed = .nan; assert(plan.validationError != nil)
 plan = WorkoutPlan.presets[0]; plan.steps[0].speed = 5.15; assert(plan.validationError != nil)
 plan = WorkoutPlan.presets[0]; plan.steps[0].incline = 26; assert(plan.validationError != nil)
