@@ -401,8 +401,10 @@ extension TreadmillBluetooth: CBCentralManagerDelegate {
         connectionText = "已连接 \(peripheral.name ?? peripheral.identifier.uuidString)"
         autoConnectText = "已自动连接跑步机"
         log("已连接，发现服务")
-        peripheral.discoverServices([serviceUUID, vendorServiceUUID, handshakeServiceUUID,
-                                     handshakeServiceUUIDLE])
+        // Enumerate all services once. The handshake UUID is 128-bit and
+        // appears byte-swapped in some PacketLogger views, so filtering it at
+        // the discovery call would hide the actual CoreBluetooth UUID.
+        peripheral.discoverServices(nil)
     }
 
     func centralManager(_ central: CBCentralManager,
@@ -423,6 +425,8 @@ extension TreadmillBluetooth: CBCentralManagerDelegate {
 extension TreadmillBluetooth: CBPeripheralDelegate {
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error { log("发现服务失败：\(error.localizedDescription)"); return }
+        let discoveredServiceNames = (peripheral.services ?? []).map { $0.uuid.uuidString }.joined(separator: ", ")
+        log("已发现服务：\(discoveredServiceNames)")
         if let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) {
             peripheral.discoverCharacteristics(
                 [featureUUID, speedRangeUUID, inclineRangeUUID, controlUUID, statusUUID,
