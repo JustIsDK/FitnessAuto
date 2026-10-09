@@ -133,14 +133,16 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
         }
         if !value.stable && reading?.stable == true { saved = false; savedRecordID = nil; acknowledgedFinal = false }
         // Keep final impedance when repeated weight notifications arrive afterwards.
+        let keepImpedance = value.stable && reading?.stable == true && reading?.kilograms == value.kilograms
         let merged = ScaleReading(kilograms: value.kilograms, stable: value.stable,
-                                  resistance1: value.resistance1 ?? (reading?.kilograms == value.kilograms ? reading?.resistance1 : nil),
-                                  resistance2: value.resistance2 ?? (reading?.kilograms == value.kilograms ? reading?.resistance2 : nil))
+                                  resistance1: value.resistance1 ?? (keepImpedance ? reading?.resistance1 : nil),
+                                  resistance2: value.resistance2 ?? (keepImpedance ? reading?.resistance2 : nil))
         if reading != merged { reading = merged }
         lastReading = Date(); status = value.stable ? "体重已稳定" : "测量中，请站稳"
         if value.resistance1 != nil {
-            compositionStatus = "已收到阻抗测量；体脂算法待验证"
-            log("收到最终测量，体重 \(value.kilograms) kg；阻抗字段已保留")
+            compositionStatus = value.hasImpedance ? "已收到阻抗测量；体脂算法待验证" : "最终测量已返回，但没有有效阻抗"
+            log("收到最终测量，体重 \(value.kilograms) kg；阻抗字段 \(value.resistance1 ?? 0)、\(value.resistance2 ?? 0)")
+            log("最终测量报文：" + data.map { String(format: "%02X", $0) }.joined(separator: " "))
             if !acknowledgedFinal {
                 acknowledgedFinal = true
                 enqueue(ScaleReading.finalAcknowledgement, label: "最终测量确认")
@@ -173,7 +175,7 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
         initializationTimeout = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { [weak self] _ in
             guard let self, self.reportRequested else { return }
             self.reportRequested = false
-            self.compositionStatus = self.reading?.resistance1 != nil
+            self.compositionStatus = self.reading?.hasImpedance == true
                 ? "已收到阻抗测量；体脂算法待验证" : "未收到完整初始化报告；可重试应用资料或导出日志"
             self.log("初始化报告等待超时")
         }

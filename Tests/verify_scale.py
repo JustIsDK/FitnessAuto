@@ -52,6 +52,19 @@ let chunk = packet("AC 29 06 04 89 0F BA F6 33 F0 AA 9D 00 00 00 00 00 00 DF 1B"
 assert(ScaleProfile.reportChunkIndex(chunk) == 4)
 var corrupt = chunk; corrupt[4] ^= 1
 assert(ScaleProfile.reportChunkIndex(corrupt) == nil)
+assert(result.hasImpedance && second.hasImpedance)
+assert(!ScaleReading.decode(live)!.hasImpedance)
+var calendar = Calendar(identifier: .gregorian)
+calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+func date(_ year: Int, _ month: Int) -> Date {
+    calendar.date(from: DateComponents(year: year, month: month, day: 1))!
+}
+assert(ScaleBirthMonth.age(year: 1992, month: 10, at: date(2026, 9), calendar: calendar) == 33)
+assert(ScaleBirthMonth.age(year: 1992, month: 10, at: date(2026, 10), calendar: calendar) == 34)
+assert(ScaleBirthMonth.age(year: 1992, month: 10, at: date(2027, 10), calendar: calendar) == 35)
+assert(ScaleBirthMonth.age(year: 0, month: 10, at: date(2026, 10), calendar: calendar) == nil)
+assert(ScaleBirthMonth.age(year: 1992, month: 0, at: date(2026, 10), calendar: calendar) == nil)
+assert(ScaleBirthMonth.age(year: 2030, month: 10, at: date(2026, 10), calendar: calendar) == nil)
 print("Scale protocol checks passed")
 '''
 with tempfile.TemporaryDirectory() as folder:

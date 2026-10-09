@@ -4,7 +4,8 @@ import UIKit
 struct WeightView: View {
     @StateObject private var scale = ScaleBluetooth()
     @AppStorage("fitnessauto.weight.heightCm") private var heightText = ""
-    @AppStorage("fitnessauto.weight.age") private var ageText = ""
+    @AppStorage("fitnessauto.weight.birthYear") private var birthYear = 0
+    @AppStorage("fitnessauto.weight.birthMonth") private var birthMonth = 0
     @AppStorage("fitnessauto.weight.sex") private var sex = -1
     @AppStorage("fitnessauto.weight.referenceKg") private var referenceText = ""
     @FocusState private var inputFocused: Bool
@@ -13,8 +14,10 @@ struct WeightView: View {
         guard let value = Double(heightText), (90...240).contains(value) else { return nil }
         return value
     }
+    private var age: Int? { ScaleBirthMonth.age(year: birthYear, month: birthMonth) }
+    private var currentYear: Int { Calendar.current.component(.year, from: Date()) }
     private var profile: ScaleProfile? {
-        guard let height, height.rounded() == height, let age = Int(ageText), sex == 0 || sex == 1,
+        guard let height, height.rounded() == height, let age, sex == 0 || sex == 1,
               let reference = Double(referenceText) else { return nil }
         let profile = ScaleProfile(heightCm: Int(height), age: age, male: sex == 1,
                                    referenceKg: reference)
@@ -48,7 +51,8 @@ struct WeightView: View {
                 if let height, let reading = scale.reading, let bmi = ScaleReading.bmi(weight: reading.kilograms, heightCm: height) {
                     LabeledContent("BMI", value: String(format: "%.1f", bmi))
                 } else { LabeledContent("BMI", value: "填写身高后计算") }
-                LabeledContent("体脂率", value: "尚未解析")
+                LabeledContent("体脂测量", value: scale.reading?.hasImpedance == true ? "已收到阻抗数据" : "尚未收到有效阻抗")
+                LabeledContent("体脂率", value: scale.reading?.hasImpedance == true ? "数据已收到，算法待解析" : "等待测量数据")
                 Text("BMI 根据体重和身高计算。体脂率的计算尚未验证，本版不显示估算值。")
                     .font(.footnote).foregroundStyle(.secondary)
                 Button(scale.saved ? "本次测量已保存" : "保存本次测量") { scale.save(heightCm: height) }
@@ -59,7 +63,19 @@ struct WeightView: View {
             Section("体脂测量资料（实验）") {
                 Text("体重通知不需要初始化；体脂测量可能需要个人资料。填写与蚂蚁阿福一致的资料后应用，再离秤重新裸脚站稳测量。资料字段仍需真机核对。")
                     .font(.footnote).foregroundStyle(.secondary)
-                profileInput("年龄", text: $ageText, unit: "岁", keyboard: .numberPad)
+                Picker("出生年份", selection: $birthYear) {
+                    Text("请选择").tag(0)
+                    ForEach((currentYear - 101)...(currentYear - 10), id: \.self) { year in
+                        Text(String(year) + " 年").tag(year)
+                    }
+                }
+                Picker("出生月份", selection: $birthMonth) {
+                    Text("请选择").tag(0)
+                    ForEach(1...12, id: \.self) { month in Text("\(month) 月").tag(month) }
+                }
+                LabeledContent("当前年龄", value: age.map { "\($0) 岁" } ?? "请选择有效出生年月")
+                Text("出生年月只需填写一次，测量时自动计算年龄，按出生月份更新。")
+                    .font(.footnote).foregroundStyle(.secondary)
                 Picker("性别", selection: $sex) {
                     Text("请选择").tag(-1)
                     Text("女").tag(0)

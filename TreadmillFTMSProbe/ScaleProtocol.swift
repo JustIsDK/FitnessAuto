@@ -6,6 +6,7 @@ struct ScaleReading: Equatable {
     let stable: Bool
     let resistance1: Int?
     let resistance2: Int?
+    var hasImpedance: Bool { (resistance1 ?? 0) > 0 || (resistance2 ?? 0) > 0 }
 
     static func decode(_ data: Data) -> ScaleReading? {
         let b = Array(data)
@@ -85,5 +86,16 @@ struct ScaleProfile {
         guard b.count == 20, b[0] == 0xAC, b[1] == 0x29, b[2] == 6, b[18] == 0xDF,
               b[2...18].reduce(0, { $0 + Int($1) }) & 31 == Int(b[19]), b[3] <= 4 else { return nil }
         return Int(b[3])
+    }
+}
+
+/// Month precision: age advances at the beginning of the birth month.
+enum ScaleBirthMonth {
+    static func age(year: Int, month: Int, at date: Date = Date(), calendar: Calendar = .current) -> Int? {
+        guard (1...12).contains(month), year > 0 else { return nil }
+        let current = calendar.dateComponents([.year, .month], from: date)
+        guard let currentYear = current.year, let currentMonth = current.month else { return nil }
+        let years = currentYear - year - (currentMonth < month ? 1 : 0)
+        return (10...100).contains(years) ? years : nil
     }
 }

@@ -74,4 +74,4 @@ xcodebuild -quiet -project TreadmillFTMSProbe.xcodeproj -scheme TreadmillFTMSPro
 
 ## 体重测量（实验版）
 
-首页新增独立“体重测量”入口，针对蚂蚁阿福专用沃莱 AFU-WL-TZ-A1，支持订阅实时体重、稳定后手动保存本机记录、按填写身高计算 BMI。体重读取已通过真机验证。可填写身高、年龄、性别与最近体重，应用官方捕获的初始化流程来测试恢复体脂测量；初始化和体脂算法仍待验证，体脂率暂未可靠解析，体重暂不写入苹果健康。数字键盘支持“完成”收起。协议事实、限制和操作步骤见 [Docs/WeightProtocol.md](Docs/WeightProtocol.md)，解析检查运行 `python3 Tests/verify_scale.py`。
+首页新增独立“体重测量”入口，针对蚂蚁阿福专用沃莱 AFU-WL-TZ-A1，支持订阅实时体重、稳定后手动保存本机记录、按填写身高计算 BMI。体重读取已通过真机验证。可填写身高、出生年月、性别与最近体重（年龄自动计算），应用官方捕获的初始化流程来测试恢复体脂测量；初始化和体脂算法仍待验证，体脂率暂未可靠解析，体重暂不写入苹果健康。数字键盘支持“完成”收起。协议事实、限制和操作步骤见 [Docs/WeightProtocol.md](Docs/WeightProtocol.md)，解析检查运行 `python3 Tests/verify_scale.py`。
