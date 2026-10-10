@@ -282,18 +282,11 @@ struct SettingsView: View {
                 PageIntro(eyebrow: "SETTINGS", title: "把应用调成适合你的样子。", subtitle: "管理权限、个人资料和设备连接。")
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
             Section("开关与权限") {
-                Toggle("自动同步体重到苹果健康", isOn: $autoWeightHealth)
-                Button("允许读取健康个人资料") {
-                    Task { await weightHealth.authorizeProfile() }
-                }.disabled(!weightHealth.available || weightHealth.profileLoading)
                 Button(recorder.healthAuthorized ? "苹果健康已授权" : "授权苹果健康") {
                     Task { await recorder.authorize() }
                 }.disabled(recorder.saving || recorder.healthAuthorized)
                 Text(recorder.status).font(.footnote).foregroundStyle(.secondary)
-                Button(weightHealth.fullyAuthorized ? "体重与 BMI 已授权" : "授权体重与 BMI") {
-                    Task { await weightHealth.authorize() }
-                }.disabled(weightHealth.busy || weightHealth.fullyAuthorized)
-                Text(weightHealth.status).font(.footnote).foregroundStyle(.secondary)
+
             }
             Section("个人信息") {
                 LabeledContent("身高", value: weightHealth.profileHeight.map { String(format: "%.1f cm", $0) } ?? unavailable)
@@ -304,6 +297,18 @@ struct SettingsView: View {
                 LabeledContent("性别", value: weightHealth.profileSex)
                 LabeledContent("最近体重", value: weightHealth.profileWeight.map { String(format: "%.2f kg", $0) } ?? unavailable)
                 Text(weightHealth.profileStatus).font(.footnote).foregroundStyle(.secondary)
+            }
+            Section("体重管理") {
+                Toggle("自动同步体重到苹果健康", isOn: $autoWeightHealth)
+                Button(weightHealth.profileReadable ? "已授权" : weightHealth.profileLoading ? "正在读取…" : "允许读取健康个人资料") {
+                    Task { await weightHealth.authorizeProfile() }
+                }.disabled(!weightHealth.available || weightHealth.profileLoading || weightHealth.profileReadable)
+                Button(weightHealth.fullyAuthorized ? "体重与 BMI 已授权" : "授权体重与 BMI") {
+                    Task { await weightHealth.authorize() }
+                }.disabled(weightHealth.busy || weightHealth.fullyAuthorized)
+                Text(weightHealth.status).font(.footnote).foregroundStyle(.secondary)
+                Text("读取不到资料时，请检查健康资料和读取权限。")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
             Section("APP 信息") {
                 LabeledContent("APP 构建", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "未知")

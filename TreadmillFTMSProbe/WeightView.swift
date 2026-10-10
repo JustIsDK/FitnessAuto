@@ -35,17 +35,24 @@ struct WeightView: View {
                 HStack {
                     Label("沃莱体脂秤", systemImage: "scalemass").font(.headline)
                     Spacer()
-                    Button {
-                        inputFocused = false
-                        if scale.active { scale.stop() } else { scale.start(profile: profile) }
-                    } label: {
-                        Text(scale.active ? "断开" : "连接")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(scale.active ? AppDesign.accent : .secondary)
-                            .padding(.horizontal, 12).padding(.vertical, 8)
-                            .background((scale.active ? AppDesign.accent : Color.secondary).opacity(0.12), in: Capsule())
-                    }
                 }.padding(.vertical, 4)
+                Button {
+                    inputFocused = false
+                    if scale.active { scale.stop() }
+                    else { scale.stop(); scale.start(profile: profile) }
+                } label: {
+                    HStack(spacing: 10) {
+                        if scale.connectionState == .connecting { ProgressView().tint(.white) }
+                        else { Image(systemName: scale.active ? "checkmark.circle.fill" : "antenna.radiowaves.left.and.right") }
+                        Text(scale.connectionButtonTitle)
+                    }
+                }
+                .buttonStyle(AppPrimaryButtonStyle())
+                .disabled(scale.connectionState == .connecting)
+                .accessibilityHint(scale.active ? "点击断开体脂秤" : "点击连接体脂秤")
+                if scale.connectionState == .failed {
+                    Text(scale.status).font(.caption).foregroundStyle(.secondary)
+                }
             }
             Section("本次测量") {
                 MetricTile(title: "本次体重", value: scale.reading.map { String(format: "%.2f", $0.kilograms) } ?? "—", unit: "kg", icon: "scalemass")

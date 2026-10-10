@@ -21,6 +21,11 @@ struct WeightDuplicateReview: Identifiable {
     @Published private(set) var profileWeight: Double?
     @Published private(set) var profileLoading = false
     @Published private(set) var profileStatus = "资料来自苹果健康，可在健康 APP 中修改"
+    // HealthKit hides read permission decisions. Actual readable values are
+    // the evidence used for the UI, never authorization dialog completion.
+    var profileReadable: Bool {
+        profileHeight != nil && profileBirthDate != nil && profileSex != "暂无可读取数据" && profileWeight != nil
+    }
     private let heightType = HKQuantityType(.height)
     private var profileTypes: Set<HKObjectType> {
         [heightType, weightType, HKObjectType.characteristicType(forIdentifier: .dateOfBirth)!,

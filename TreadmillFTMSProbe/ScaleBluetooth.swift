@@ -3,7 +3,29 @@ import CoreBluetooth
 import Combine
 
 final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
-    @Published private(set) var status = "未连接"
+    enum ConnectionState { case idle, connecting, connected, notFound, failed }
+    @Published private(set) var connectionState: ConnectionState = .idle
+    @Published private(set) var status = "未连接" {
+        didSet {
+            switch status {
+            case "已断开", "未连接", "体脂秤已断开，请重新连接": connectionState = .idle
+            case "连接超时，请唤醒秤后重试": connectionState = .notFound
+            case "寻找 AFU-WL-TZ-A1，请踩秤唤醒", "正在连接体脂秤", "正在订阅测量数据", "等待蓝牙开启": connectionState = .connecting
+            case "已连接，请站稳等待测量": connectionState = .connected
+            case "请在设置中允许蓝牙访问", "蓝牙不可用", "连接失败，请重试", "服务发现失败", "特征发现失败", "测量订阅失败", "未发现专用秤服务 FFB0", "未发现测量通知 FFB2": connectionState = .failed
+            default: break
+            }
+        }
+    }
+    var connectionButtonTitle: String {
+        switch connectionState {
+        case .idle: return "连接"
+        case .connecting: return "连接中…"
+        case .connected: return "已连接"
+        case .notFound: return "找不到设备 · 重试"
+        case .failed: return "连接失败 · 重试"
+        }
+    }
     @Published private(set) var reading: ScaleReading?
     @Published private(set) var records: [WeightRecord] = []
     @Published private(set) var logs: [String] = []
@@ -42,6 +64,7 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
     func start(profile: ScaleProfile? = nil) {
         guard !wanted else { return }
         wanted = true
+        connectionState = .connecting
         self.profile = profile?.valid == true ? profile : nil
         compositionStatus = "未启用体脂测量"
         reportRequested = false; reportChunks.removeAll(); pendingWrites.removeAll()
