@@ -202,6 +202,7 @@
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将运动记录、距离和热量，以及你选择同步的体重与 BMI 写入苹果健康。";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -234,6 +235,7 @@
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将运动记录、距离和热量，以及你选择同步的体重与 BMI 写入苹果健康。";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
