@@ -38,6 +38,9 @@ struct WeightView: View {
                 Text("测量稳定后会自动保存；健康同步可在设置中管理。APP 在前台时会自动寻找体脂秤。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
+            Section("体重趋势") {
+                WeightTrendView(records: scale.records)
+            }
             Section("测量记录") {
                 if scale.records.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {

@@ -228,6 +228,9 @@ struct WorkoutRecordsView: View {
             Section {
                 PageIntro(eyebrow: "YOUR PROGRESS", title: "每一次，都算数。", subtitle: "回顾运动记录，把进步留在苹果健康。")
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
+            Section("运动趋势") {
+                WorkoutTrendView(records: recorder.records)
+            }
             Section("本机运动记录") {
                 if recorder.records.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
