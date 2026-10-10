@@ -3,14 +3,15 @@ import CoreBluetooth
 import Combine
 
 final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
-    enum ConnectionState { case idle, connecting, connected, notFound, failed }
+    enum ConnectionState { case idle, scanning, connecting, connected, notFound, failed }
     @Published private(set) var connectionState: ConnectionState = .idle
     @Published private(set) var status = "未连接" {
         didSet {
             switch status {
             case "已断开", "未连接", "体脂秤已断开，请重新连接": connectionState = .idle
             case "连接超时，请唤醒秤后重试": connectionState = .notFound
-            case "寻找 AFU-WL-TZ-A1，请踩秤唤醒", "正在连接体脂秤", "正在订阅测量数据", "等待蓝牙开启": connectionState = .connecting
+            case "寻找 AFU-WL-TZ-A1，请踩秤唤醒": connectionState = .scanning
+            case "正在连接体脂秤", "正在订阅测量数据", "等待蓝牙开启": connectionState = .connecting
             case "已连接，请站稳等待测量": connectionState = .connected
             case "请在设置中允许蓝牙访问", "蓝牙不可用", "连接失败，请重试", "服务发现失败", "特征发现失败", "测量订阅失败", "未发现专用秤服务 FFB0", "未发现测量通知 FFB2": connectionState = .failed
             default: break
@@ -20,6 +21,7 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
     var connectionButtonTitle: String {
         switch connectionState {
         case .idle: return "连接"
+        case .scanning: return "等待上秤"
         case .connecting: return "连接中…"
         case .connected: return "已连接"
         case .notFound: return "找不到设备 · 重试"
@@ -36,6 +38,28 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
     private var peripheral: CBPeripheral?
     private var writer: CBCharacteristic?
     private var wanted = false
+    private var automaticScanning = false
+    private var retryWork: DispatchWorkItem?
+
+    func setAppActive(_ active: Bool) {
+        automaticScanning = active
+        retryWork?.cancel()
+        if active {
+            if !wanted { wanted = true; scanIfReady() }
+        } else { stop() }
+    }
+
+    private func resumeAutomaticScan() {
+        guard automaticScanning else { return }
+        retryWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.automaticScanning, !self.active else { return }
+            self.wanted = true
+            self.scanIfReady()
+        }
+        retryWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: work)
+    }
     private var timeout: Timer?
     private var initializationTimeout: Timer?
     private var lastReading: Date?
@@ -78,9 +102,11 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
         if let peripheral { central.cancelPeripheralConnection(peripheral) }
         writer = nil; pendingWrites.removeAll(); reportRequested = false; profile = nil
         compositionStatus = "已断开"; status = "已断开"
+        resumeAutomaticScan()
     }
     private func scanIfReady() {
         guard wanted else { return }
+        guard !active, peripheral?.state != .connecting, peripheral?.state != .connected else { return }
         guard central.state == .poweredOn else {
             status = central.state == .unauthorized ? "请在设置中允许蓝牙访问" : "等待蓝牙开启"
             return
@@ -89,6 +115,9 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
         log("扫描体脂秤；按设备名称匹配，不要求系统配对")
         central.scanForPeripherals(withServices: nil, options: nil)
         timeout?.invalidate()
+        // In automatic mode keep waiting for a sleeping scale to advertise.
+        // Only the actual connection/subscription attempt has a deadline.
+        if automaticScanning { return }
         timeout = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
             guard let self else { return }
             self.stop(); self.status = "连接超时，请唤醒秤后重试"
@@ -104,21 +133,33 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
         guard wanted, name.uppercased() == "AFU-WL-TZ-A1", self.peripheral?.state != .connecting else { return }
         central.stopScan(); self.peripheral = peripheral; peripheral.delegate = self
         status = "正在连接体脂秤"; log("发现 \(name)"); central.connect(peripheral)
+        timeout?.invalidate()
+        timeout = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
+            guard let self, !self.active else { return }
+            self.stop(); self.status = "连接超时，请唤醒秤后重试"
+        }
     }
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        guard wanted else { central.cancelPeripheralConnection(peripheral); return }
+        guard wanted, self.peripheral === peripheral else { central.cancelPeripheralConnection(peripheral); return }
+        reading = nil; saved = false; savedRecordID = nil; lastReading = nil
+        measurementDate = nil; acknowledgedFinal = false
         status = "正在订阅测量数据"; log("已连接，发现 FFB0")
         peripheral.discoverServices([CBUUID(string: "FFB0")])
     }
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        guard self.peripheral === peripheral else { return }
+        self.peripheral = nil
         stop(); status = "连接失败，请重试"; log(error?.localizedDescription ?? "连接失败")
     }
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        guard self.peripheral === peripheral else { return }
+        self.peripheral = nil
         active = false; writer = nil; pendingWrites.removeAll(); reportRequested = false; timeout?.invalidate()
         initializationTimeout?.invalidate(); initializationTimeout = nil
         compositionStatus = "已断开"
         if wanted { wanted = false; status = "体脂秤已断开，请重新连接" }
         log("连接断开：\(error?.localizedDescription ?? "设备断开")")
+        resumeAutomaticScan()
     }
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error { stop(); status = "服务发现失败"; log(error.localizedDescription); return }
@@ -229,6 +270,10 @@ final class ScaleBluetooth: NSObject, ObservableObject, CBCentralManagerDelegate
     }
     func delete(at offsets: IndexSet) {
         for index in offsets.sorted(by: >) { records.remove(at: index) }
+        persist()
+    }
+    func delete(ids: Set<UUID>) {
+        records.removeAll { ids.contains($0.id) }
         persist()
     }
     private func persist() {

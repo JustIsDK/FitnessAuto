@@ -4,27 +4,9 @@ import UIKit
 struct WeightView: View {
     @EnvironmentObject private var scale: ScaleBluetooth
     @EnvironmentObject private var health: WeightHealthStore
-    @AppStorage("fitnessauto.weight.health.auto") private var autoHealth = true
-    @AppStorage("fitnessauto.weight.heightCm") private var heightText = ""
-    @AppStorage("fitnessauto.weight.birthYear") private var birthYear = 0
-    @AppStorage("fitnessauto.weight.birthMonth") private var birthMonth = 0
-    @AppStorage("fitnessauto.weight.sex") private var sex = -1
-    @AppStorage("fitnessauto.weight.referenceKg") private var referenceText = ""
-    @State private var showingBirthMonthPicker = false
-    @FocusState private var inputFocused: Bool
-    @Environment(\.scenePhase) private var scenePhase
     private var height: Double? {
         guard let value = health.profileHeight, (90...240).contains(value) else { return nil }
         return value
-    }
-    private var age: Int? { ScaleBirthMonth.age(year: birthYear, month: birthMonth) }
-
-    private var profile: ScaleProfile? {
-        guard let height, height.rounded() == height, let age, sex == 0 || sex == 1,
-              let reference = Double(referenceText) else { return nil }
-        let profile = ScaleProfile(heightCm: Int(height), age: age, male: sex == 1,
-                                   referenceKg: reference)
-        return profile.valid ? profile : nil
     }
     var body: some View {
         List {
@@ -36,20 +18,11 @@ struct WeightView: View {
                     Label("沃莱体脂秤", systemImage: "scalemass").font(.headline)
                     Spacer()
                 }.padding(.vertical, 4)
-                Button {
-                    inputFocused = false
-                    if scale.active { scale.stop() }
-                    else { scale.stop(); scale.start(profile: profile) }
-                } label: {
-                    HStack(spacing: 10) {
-                        if scale.connectionState == .connecting { ProgressView().tint(.white) }
-                        else { Image(systemName: scale.active ? "checkmark.circle.fill" : "antenna.radiowaves.left.and.right") }
-                        Text(scale.connectionButtonTitle)
-                    }
-                }
-                .buttonStyle(AppPrimaryButtonStyle())
-                .disabled(scale.connectionState == .connecting)
-                .accessibilityHint(scale.active ? "点击断开体脂秤" : "点击连接体脂秤")
+                HStack(spacing: 10) {
+                    if scale.connectionState == .connecting { ProgressView() }
+                    else { Image(systemName: scale.active ? "checkmark.circle.fill" : "antenna.radiowaves.left.and.right") }
+                    Text(scale.connectionButtonTitle).font(.headline)
+                }.foregroundStyle(AppDesign.accent)
                 if scale.connectionState == .failed {
                     Text(scale.status).font(.caption).foregroundStyle(.secondary)
                 }
@@ -62,7 +35,7 @@ struct WeightView: View {
                 if let height, let reading = scale.reading, let bmi = ScaleReading.bmi(weight: reading.kilograms, heightCm: height) {
                     LabeledContent("BMI", value: String(format: "%.1f", bmi))
                 } else { LabeledContent("BMI", value: "健康中有身高后计算") }
-                Text("测量稳定后会自动保存；健康同步可在设置中管理。离开此页面或进入后台会断开体脂秤。")
+                Text("测量稳定后会自动保存；健康同步可在设置中管理。APP 在前台时会自动寻找体脂秤。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Section("测量记录") {
@@ -92,60 +65,14 @@ struct WeightView: View {
         .appListStyle()
         .navigationTitle("体重测量")
         .navigationBarTitleDisplayMode(.inline)
-        .scrollDismissesKeyboard(.interactively)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("完成") { inputFocused = false }
-            }
-        }
-        .sheet(isPresented: $showingBirthMonthPicker) {
-            BirthMonthPicker(year: birthYear, month: birthMonth) { year, month in
-                birthYear = year
-                birthMonth = month
-            }
-        }
-        .alert(item: $health.duplicateReview) { review in
-            Alert(title: Text("可能已有同一次测量"),
-                  message: Text("苹果健康中发现时间和数值接近的记录，来源：\(review.sources)。是否仍然写入？"),
-                  primaryButton: .cancel(Text("取消")),
-                  secondaryButton: .default(Text("仍然写入")) {
-                    Task { await health.save(review.record, allowDuplicate: true) }
-                  })
-        }
-        .onAppear { health.refreshAuthorization() }
-        .task { await health.refreshProfile() }
-        .onChange(of: scale.reading) { _, reading in
-            guard reading?.stable == true, scale.canSave else { return }
-            scale.save(heightCm: height)
-            if autoHealth, let record = scale.records.first {
-                Task { await health.save(record, requestPermission: false) }
-            }
-        }
-        .onDisappear { scale.stop() }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .background { scale.stop() }
-            if phase == .active {
-                health.refreshAuthorization()
-                Task { await health.refreshProfile() }
-            }
-        }
-    }
-    private func profileInput(_ label: String, text: Binding<String>, unit: String,
-                              keyboard: UIKeyboardType = .decimalPad) -> some View {
-        HStack {
-            Text(label)
-            TextField("请输入", text: text).keyboardType(keyboard)
-                .multilineTextAlignment(.trailing).focused($inputFocused)
-            Text(unit).foregroundStyle(.secondary)
-        }
     }
 
     private func deleteRecords(at offsets: IndexSet) {
         let records = offsets.compactMap { scale.records.indices.contains($0) ? scale.records[$0] : nil }
         Task {
             for record in records { await health.delete(record) }
-            scale.delete(at: offsets)
+            // New measurements may arrive while HealthKit deletion is pending.
+            scale.delete(ids: Set(records.map(\.id)))
         }
     }
 }
