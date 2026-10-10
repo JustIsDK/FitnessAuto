@@ -106,6 +106,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
 
     func finishRecording() {
         autoRecordingSuppressed = true
+        watchSession.stopWorkout()
         recorder.finish(reason: recorder.waitingForMotion ? "已取消等待" : "记录已结束；本次运行不再自动创建记录，可点击开始记录恢复")
     }
 
@@ -252,7 +253,6 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         workoutStepIndex = nil
         workoutStartedAt = ProcessInfo.processInfo.systemUptime
         startRecording()
-        watchSession.startWorkout(title: workoutPlan?.title ?? "跑步机训练", running: true)
         tickWorkout()
     }
 
@@ -307,7 +307,6 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         workoutStartedAt = nil
         workoutActive = false
         workoutPaused = true
-        watchSession.pauseWorkout()
         workoutExpectedTarget = nil
         workoutConfirmationDeadline = nil
         queuedVendorAction = nil
@@ -321,7 +320,6 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
               plan.validationError == nil, plan.steps.allSatisfy({ speedRange?.contains($0.speed) == true &&
                   inclineRange?.contains(Double($0.incline)) == true }) else { return }
         startOrContinueWorkout()
-        if let plan = workoutPlan { watchSession.resumeWorkout(title: plan.title, running: true) }
     }
 
     func endWorkout(reason: String = "计划已结束") {
@@ -735,6 +733,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
                 if appIsActive {
                     if !recorder.recording && !autoRecordingSuppressed && !workoutStopping { startRecording() }
                     recorder.observeRunning()
+                    if recorder.recording { watchSession.startWorkout(title: workoutPlan?.title ?? "跑步机训练", running: recorder.running) }
                 }
                 if let expected = workoutExpectedTarget,
                    bytes[3] == expected.speed, bytes[4] == expected.incline {
@@ -751,6 +750,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
                 liveIncline = nil
                 vendorSpeedTenths = nil
                 if !recorder.waitingForMotion && !workoutStarting {
+                    watchSession.stopWorkout()
                     recorder.finish(reason: "跑步机已停止或倒计时；记录已保存在本机")
                 }
                 if !workoutStarting { pauseWorkout("跑步机已停止或处于倒计时，计划已暂停") }

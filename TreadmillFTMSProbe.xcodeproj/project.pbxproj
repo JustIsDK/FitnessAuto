@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -11,19 +11,44 @@
 		A00000000000000000000012 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000022 /* ContentView.swift */; };
 		A00000000000000000000013 /* TreadmillBluetooth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000023 /* TreadmillBluetooth.swift */; };
 		A00000000000000000000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000024 /* Assets.xcassets */; };
-		A00000000000000000000015 = {isa = PBXBuildFile; fileRef = A00000000000000000000025; };
-		A00000000000000000000016 = {isa = PBXBuildFile; fileRef = A00000000000000000000026; };
-		A00000000000000000000017 = {isa = PBXBuildFile; fileRef = A00000000000000000000027; };
-		A00000000000000000000018 = {isa = PBXBuildFile; fileRef = A00000000000000000000028; };
-		B00000000000000000000001 = {isa = PBXBuildFile; fileRef = B00000000000000000000011; };
-		B00000000000000000000002 = {isa = PBXBuildFile; fileRef = B00000000000000000000012; };
-		B00000000000000000000003 = {isa = PBXBuildFile; fileRef = B00000000000000000000013; };
-		B00000000000000000000004 = {isa = PBXBuildFile; fileRef = B00000000000000000000014; };
-		B00000000000000000000005 = {isa = PBXBuildFile; fileRef = B00000000000000000000015; };
-		B00000000000000000000006 = {isa = PBXBuildFile; fileRef = B00000000000000000000016; };
-		B00000000000000000000007 = {isa = PBXBuildFile; fileRef = B00000000000000000000017; };
-		B00000000000000000000008 = {isa = PBXBuildFile; fileRef = B00000000000000000000018; };
+		A00000000000000000000015 /* PlanLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000025 /* PlanLibrary.swift */; };
+		A00000000000000000000016 /* WorkoutData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000026 /* WorkoutData.swift */; };
+		A00000000000000000000017 /* WorkoutRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000027 /* WorkoutRecorder.swift */; };
+		A00000000000000000000018 /* PlanImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000028 /* PlanImport.swift */; };
+		B00000000000000000000001 /* ScaleProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000011 /* ScaleProtocol.swift */; };
+		B00000000000000000000002 /* ScaleBluetooth.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000012 /* ScaleBluetooth.swift */; };
+		B00000000000000000000003 /* WeightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000013 /* WeightView.swift */; };
+		B00000000000000000000004 /* WeightHealthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000014 /* WeightHealthStore.swift */; };
+		B00000000000000000000005 /* AppDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000015 /* AppDesign.swift */; };
+		B00000000000000000000006 /* TrendSeries.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000016 /* TrendSeries.swift */; };
+		B00000000000000000000007 /* TrendCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000017 /* TrendCharts.swift */; };
+		B00000000000000000000008 /* WatchSessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000018 /* WatchSessionCoordinator.swift */; };
+		CED80EC0307A6A6E00ED04AE /* FitnessAutoWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = CED80EB6307A6A6D00ED04AE /* FitnessAutoWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		CED80EBE307A6A6E00ED04AE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000060 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CED80EB5307A6A6D00ED04AE;
+			remoteInfo = "FitnessAutoWatch Watch App";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		CED80EC1307A6A6E00ED04AE /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				CED80EC0307A6A6E00ED04AE /* FitnessAutoWatch Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		A00000000000000000000020 /* TreadmillFTMSProbe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TreadmillFTMSProbe.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -31,22 +56,43 @@
 		A00000000000000000000022 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A00000000000000000000023 /* TreadmillBluetooth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreadmillBluetooth.swift; sourceTree = "<group>"; };
 		A00000000000000000000024 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A00000000000000000000025 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLibrary.swift; sourceTree = "<group>"; };
-		A00000000000000000000026 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutData.swift; sourceTree = "<group>"; };
-		A00000000000000000000027 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutRecorder.swift; sourceTree = "<group>"; };
-		A00000000000000000000028 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanImport.swift; sourceTree = "<group>"; };
-		B00000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleProtocol.swift; sourceTree = "<group>"; };
-		B00000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleBluetooth.swift; sourceTree = "<group>"; };
-		B00000000000000000000013 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightView.swift; sourceTree = "<group>"; };
-		B00000000000000000000014 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightHealthStore.swift; sourceTree = "<group>"; };
-		B00000000000000000000015 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDesign.swift; sourceTree = "<group>"; };
-		B00000000000000000000016 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendSeries.swift; sourceTree = "<group>"; };
-		B00000000000000000000017 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendCharts.swift; sourceTree = "<group>"; };
-		B00000000000000000000018 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSessionCoordinator.swift; sourceTree = "<group>"; };
+		A00000000000000000000025 /* PlanLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLibrary.swift; sourceTree = "<group>"; };
+		A00000000000000000000026 /* WorkoutData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutData.swift; sourceTree = "<group>"; };
+		A00000000000000000000027 /* WorkoutRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutRecorder.swift; sourceTree = "<group>"; };
+		A00000000000000000000028 /* PlanImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanImport.swift; sourceTree = "<group>"; };
+		B00000000000000000000011 /* ScaleProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleProtocol.swift; sourceTree = "<group>"; };
+		B00000000000000000000012 /* ScaleBluetooth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScaleBluetooth.swift; sourceTree = "<group>"; };
+		B00000000000000000000013 /* WeightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightView.swift; sourceTree = "<group>"; };
+		B00000000000000000000014 /* WeightHealthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightHealthStore.swift; sourceTree = "<group>"; };
+		B00000000000000000000015 /* AppDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDesign.swift; sourceTree = "<group>"; };
+		B00000000000000000000016 /* TrendSeries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendSeries.swift; sourceTree = "<group>"; };
+		B00000000000000000000017 /* TrendCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendCharts.swift; sourceTree = "<group>"; };
+		B00000000000000000000018 /* WatchSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSessionCoordinator.swift; sourceTree = "<group>"; };
+		CED80EB6307A6A6D00ED04AE /* FitnessAutoWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "FitnessAutoWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+        AABB00112233445566778899 = {
+            isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+            membershipExceptions = (Info.plist,);
+            target = CED80EB5307A6A6D00ED04AE;
+        };
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		CED80EB7307A6A6D00ED04AE /* FitnessAutoWatch Watch App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); exceptions = (AABB00112233445566778899,);
+            path = "FitnessAutoWatch Watch App"; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A00000000000000000000031 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CED80EB3307A6A6D00ED04AE /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -60,6 +106,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000000000000000000041 /* TreadmillFTMSProbe */,
+				CED80EB7307A6A6D00ED04AE /* FitnessAutoWatch Watch App */,
 				A00000000000000000000042 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -71,18 +118,18 @@
 				A00000000000000000000022 /* ContentView.swift */,
 				A00000000000000000000023 /* TreadmillBluetooth.swift */,
 				A00000000000000000000024 /* Assets.xcassets */,
-				A00000000000000000000025,
-				A00000000000000000000028,
-				B00000000000000000000013,
-				B00000000000000000000014,
-				B00000000000000000000015,
-				B00000000000000000000018,
-				B00000000000000000000017,
-				B00000000000000000000016,
-				B00000000000000000000012,
-				B00000000000000000000011,
-				A00000000000000000000027,
-				A00000000000000000000026,
+				A00000000000000000000025 /* PlanLibrary.swift */,
+				A00000000000000000000028 /* PlanImport.swift */,
+				B00000000000000000000013 /* WeightView.swift */,
+				B00000000000000000000014 /* WeightHealthStore.swift */,
+				B00000000000000000000015 /* AppDesign.swift */,
+				B00000000000000000000018 /* WatchSessionCoordinator.swift */,
+				B00000000000000000000017 /* TrendCharts.swift */,
+				B00000000000000000000016 /* TrendSeries.swift */,
+				B00000000000000000000012 /* ScaleBluetooth.swift */,
+				B00000000000000000000011 /* ScaleProtocol.swift */,
+				A00000000000000000000027 /* WorkoutRecorder.swift */,
+				A00000000000000000000026 /* WorkoutData.swift */,
 			);
 			path = TreadmillFTMSProbe;
 			sourceTree = "<group>";
@@ -91,6 +138,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000000000000000000020 /* TreadmillFTMSProbe.app */,
+				CED80EB6307A6A6D00ED04AE /* FitnessAutoWatch Watch App.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -105,14 +153,38 @@
 				A00000000000000000000030 /* Sources */,
 				A00000000000000000000031 /* Frameworks */,
 				A00000000000000000000032 /* Resources */,
+				CED80EC1307A6A6E00ED04AE /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CED80EBF307A6A6E00ED04AE /* PBXTargetDependency */,
+			);
+			name = TreadmillFTMSProbe;
+			productName = TreadmillFTMSProbe;
+			productReference = A00000000000000000000020 /* TreadmillFTMSProbe.app */;
+			productType = "com.apple.product-type.application";
+		};
+		CED80EB5307A6A6D00ED04AE /* FitnessAutoWatch Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CED80EC4307A6A6E00ED04AE /* Build configuration list for PBXNativeTarget "FitnessAutoWatch Watch App" */;
+			buildPhases = (
+				CED80EB2307A6A6D00ED04AE /* Sources */,
+				CED80EB3307A6A6D00ED04AE /* Frameworks */,
+				CED80EB4307A6A6D00ED04AE /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = TreadmillFTMSProbe;
-			productName = TreadmillFTMSProbe;
-			productReference = A00000000000000000000020 /* TreadmillFTMSProbe.app */;
+			fileSystemSynchronizedGroups = (
+				CED80EB7307A6A6D00ED04AE /* FitnessAutoWatch Watch App */,
+			);
+			name = "FitnessAutoWatch Watch App";
+			packageProductDependencies = (
+			);
+			productName = "FitnessAutoWatch Watch App";
+			productReference = CED80EB6307A6A6D00ED04AE /* FitnessAutoWatch Watch App.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -122,11 +194,19 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
+				LastSwiftUpdateCheck = 2700;
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					A00000000000000000000050 = {
 						CreatedOnToolsVersion = 16.0;
-						SystemCapabilities = { com.apple.HealthKit = { enabled = 1; }; };
+						SystemCapabilities = {
+							com.apple.HealthKit = {
+								enabled = 1;
+							};
+						};
+					};
+					CED80EB5307A6A6D00ED04AE = {
+						CreatedOnToolsVersion = 27.0;
 					};
 				};
 			};
@@ -144,6 +224,7 @@
 			projectRoot = "";
 			targets = (
 				A00000000000000000000050 /* TreadmillFTMSProbe */,
+				CED80EB5307A6A6D00ED04AE /* FitnessAutoWatch Watch App */,
 			);
 		};
 /* End PBXProject section */
@@ -157,6 +238,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CED80EB4307A6A6D00ED04AE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -167,22 +255,37 @@
 				A00000000000000000000011 /* App.swift in Sources */,
 				A00000000000000000000012 /* ContentView.swift in Sources */,
 				A00000000000000000000013 /* TreadmillBluetooth.swift in Sources */,
-				A00000000000000000000015,
-				A00000000000000000000018,
-				B00000000000000000000003,
-				B00000000000000000000004,
-				B00000000000000000000005,
-				B00000000000000000000008,
-				B00000000000000000000007,
-				B00000000000000000000006,
-				B00000000000000000000002,
-				B00000000000000000000001,
-				A00000000000000000000017,
-				A00000000000000000000016,
+				A00000000000000000000015 /* PlanLibrary.swift in Sources */,
+				A00000000000000000000018 /* PlanImport.swift in Sources */,
+				B00000000000000000000003 /* WeightView.swift in Sources */,
+				B00000000000000000000004 /* WeightHealthStore.swift in Sources */,
+				B00000000000000000000005 /* AppDesign.swift in Sources */,
+				B00000000000000000000008 /* WatchSessionCoordinator.swift in Sources */,
+				B00000000000000000000007 /* TrendCharts.swift in Sources */,
+				B00000000000000000000006 /* TrendSeries.swift in Sources */,
+				B00000000000000000000002 /* ScaleBluetooth.swift in Sources */,
+				B00000000000000000000001 /* ScaleProtocol.swift in Sources */,
+				A00000000000000000000017 /* WorkoutRecorder.swift in Sources */,
+				A00000000000000000000016 /* WorkoutData.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CED80EB2307A6A6D00ED04AE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CED80EBF307A6A6E00ED04AE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CED80EB5307A6A6D00ED04AE /* FitnessAutoWatch Watch App */;
+			targetProxy = CED80EBE307A6A6E00ED04AE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A00000000000000000000071 /* Debug */ = {
@@ -192,26 +295,26 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 20261010.5;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
-				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取身高、出生日期、性别和最近体重，用于展示个人资料与计算 BMI；读取已有运动及体重、BMI 记录以检查重复。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将运动记录、距离和热量，以及你选择同步的体重与 BMI 写入苹果健康。";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.TreadmillFTMSProbe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				MARKETING_VERSION = 1.0;
-				CURRENT_PROJECT_VERSION = 20261010.4;
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -226,25 +329,25 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
+				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 20261010.5;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
-				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取身高、出生日期、性别和最近体重，用于展示个人资料与计算 BMI；读取已有运动及体重、BMI 记录以检查重复。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将运动记录、距离和热量，以及你选择同步的体重与 BMI 写入苹果健康。";
-				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.TreadmillFTMSProbe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				MARKETING_VERSION = 1.0;
-				CURRENT_PROJECT_VERSION = 20261010.4;
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -326,6 +429,131 @@
 			};
 			name = Release;
 		};
+		CED80EC2307A6A6E00ED04AE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 20261010.5;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_PREVIEWS = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
+                DEVELOPMENT_TEAM = 7MJT6LS844;
+                CODE_SIGN_ENTITLEMENTS = "FitnessAutoWatch Watch App/FitnessAutoWatch.entitlements";
+                INFOPLIST_FILE = "FitnessAutoWatch Watch App/Info.plist";
+                INFOPLIST_KEY_NSHealthShareUsageDescription = "读取手表心率，用于跑步机运动记录";
+                INFOPLIST_KEY_NSHealthUpdateUsageDescription = "保存运动心率到苹果健康";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.example.TreadmillFTMSProbe;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.TreadmillFTMSProbe.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		CED80EC3307A6A6E00ED04AE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 20261010.5;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_PREVIEWS = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
+                DEVELOPMENT_TEAM = 7MJT6LS844;
+                CODE_SIGN_ENTITLEMENTS = "FitnessAutoWatch Watch App/FitnessAutoWatch.entitlements";
+                INFOPLIST_FILE = "FitnessAutoWatch Watch App/Info.plist";
+                INFOPLIST_KEY_NSHealthShareUsageDescription = "读取手表心率，用于跑步机运动记录";
+                INFOPLIST_KEY_NSHealthUpdateUsageDescription = "保存运动心率到苹果健康";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.example.TreadmillFTMSProbe;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.TreadmillFTMSProbe.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -343,6 +571,15 @@
 			buildConfigurations = (
 				A00000000000000000000073 /* Debug */,
 				A00000000000000000000074 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		CED80EC4307A6A6E00ED04AE /* Build configuration list for PBXNativeTarget "FitnessAutoWatch Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CED80EC2307A6A6E00ED04AE /* Debug */,
+				CED80EC3307A6A6E00ED04AE /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

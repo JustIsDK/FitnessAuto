@@ -26,6 +26,10 @@
 
 没有声称支持持续后台训练。Apple 蓝牙后台模式只允许处理特定事件，不能保证每秒查询；本设备需要持续查询维持私有通信。依据：[Apple 蓝牙后台处理](https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/CoreBluetoothBackgroundProcessingForIOSApps/PerformingTasksWhileYourAppIsInTheBackground.html)。
 
+## Apple Watch 心率
+
+配对的 Apple Watch 安装 FitnessAuto 并完成首次健康授权后，iPhone 在确认跑步机运行时通过 HealthKit 请求唤起手表，显示并保存心率。暂停计划调节或 iPhone 进入后台时继续采集；结束计划、结束记录或确认停机时同步结束。手表只保存心率样本，运动记录仍由 iPhone 保存。安装、权限、断线处理与真机验收见 [Apple Watch 说明](Docs/AppleWatch.md)。
+
 ## 运动数据与苹果健康
 
 连接后检测到运行就自动创建本机记录，不需要在 APP 内开启计划；面板启动或连接时已经运行的运动同样记录。选择室内步行/室内跑步可修改当前记录的健康分类。停止后保存记录；手动结束记录将抑制本次连续运行中的再次自动记录，点击“开始记录”可恢复。结束后进入“运动记录与苹果健康”，点击记录的“写入苹果健康”，允许系统请求的写入权限。运动类型用于健康 APP 的步行/跑步分类；所有所需写入权限开启后，授权按钮变为灰色“已授权”，返回页面或前台时重新检查，部分授权会提示补充权限。仅在用户点击后写入。为检查重复，新增请求读取苹果健康的运动记录；不请求读取心率等其他健康数据。

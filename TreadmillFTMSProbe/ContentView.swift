@@ -3,6 +3,7 @@ import UIKit
 
 struct ContentView: View {
     @EnvironmentObject private var bluetooth: TreadmillBluetooth
+    @StateObject private var watch = WatchSessionCoordinator.shared
     @EnvironmentObject private var library: PlanLibrary
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedPlanID = 1
@@ -30,6 +31,7 @@ struct ContentView: View {
                             MetricTile(title: "当前坡度", value: bluetooth.liveIncline.map(String.init) ?? "—", unit: "%", icon: "mountain.2")
                         }
                         Text(bluetooth.connectionText).font(.caption).foregroundStyle(.secondary)
+                        Label(watch.status, systemImage: "applewatch").font(.caption).foregroundStyle(.secondary)
                         if !bluetooth.connected {
                             Button {
                                 bluetooth.scan()
