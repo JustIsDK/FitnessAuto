@@ -22,6 +22,7 @@
 		B00000000000000000000005 = {isa = PBXBuildFile; fileRef = B00000000000000000000015; };
 		B00000000000000000000006 = {isa = PBXBuildFile; fileRef = B00000000000000000000016; };
 		B00000000000000000000007 = {isa = PBXBuildFile; fileRef = B00000000000000000000017; };
+		B00000000000000000000008 = {isa = PBXBuildFile; fileRef = B00000000000000000000018; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +42,7 @@
 		B00000000000000000000015 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDesign.swift; sourceTree = "<group>"; };
 		B00000000000000000000016 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendSeries.swift; sourceTree = "<group>"; };
 		B00000000000000000000017 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendCharts.swift; sourceTree = "<group>"; };
+		B00000000000000000000018 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSessionCoordinator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +76,7 @@
 				B00000000000000000000013,
 				B00000000000000000000014,
 				B00000000000000000000015,
+				B00000000000000000000018,
 				B00000000000000000000017,
 				B00000000000000000000016,
 				B00000000000000000000012,
@@ -169,6 +172,7 @@
 				B00000000000000000000003,
 				B00000000000000000000004,
 				B00000000000000000000005,
+				B00000000000000000000008,
 				B00000000000000000000007,
 				B00000000000000000000006,
 				B00000000000000000000002,
