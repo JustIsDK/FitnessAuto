@@ -3,7 +3,11 @@
 ## 安装和首次授权
 
 - iPhone target：`TreadmillFTMSProbe`；Watch target：`FitnessAutoWatch Watch App`，watchOS 10 或更高。
-- iPhone 构建会嵌入 Watch APP。若手表未自动安装，在 iPhone 的 Watch APP 中找到 FitnessAuto 并安装，或在 Xcode 选择 Watch scheme 与已配对手表运行。
+- iPhone 构建会嵌入 Watch APP，但当前使用免费 Personal Team 开发签名，不能依赖手机 Watch APP 的「安装」。已从手机安装日志确认，watchOS 会以 `MIInstallerErrorDomain Code=111` 拒绝该安装来源，即使传输完成也会显示「无法安装」。
+- 当前签名方式：在 Xcode 选择 `FitnessAutoWatch Watch App` scheme，选择真实配对手表后运行，或通过已建立开发连接的 `xcrun devicectl device install app` 直接安装 Watch 包。付费团队分发需另按对应签名/分发流程验证。
+- 手表需单独开启「设置 → 隐私与安全性 → 开发者模式」，重启后再次确认开启；iPhone 开启开发者模式不等于手表已开启。
+- Xcode 连接错误 `CoreDeviceError 4000 / RemotePairingError 1001` 表示开发连接通道超时，发生在安装前。检查手表确实连接路由器 Wi-Fi、Mac 与手表网络互通、手表解锁、VPN/网络隔离等；手机能连接手表不代表 Mac 的开发连接也可达。
+- 截图中的 `Could not get trait set…` 与 `not stripping binary because it is signed` 为构建警告，不能据此认定是上述安装失败的原因。
 - 第一次先打开手表上的 FitnessAuto，点击「授权并等待训练」，允许运动和心率健康权限。戴好并解锁手表。
 - 此版本只在手表显示实时心率；iPhone 展示唤起/同步状态。
 
