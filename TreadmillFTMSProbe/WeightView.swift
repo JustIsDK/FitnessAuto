@@ -14,7 +14,7 @@ struct WeightView: View {
     @FocusState private var inputFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
     private var height: Double? {
-        guard let value = Double(heightText), (90...240).contains(value) else { return nil }
+        guard let value = health.profileHeight, (90...240).contains(value) else { return nil }
         return value
     }
     private var age: Int? { ScaleBirthMonth.age(year: birthYear, month: birthMonth) }
@@ -54,7 +54,7 @@ struct WeightView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 if let height, let reading = scale.reading, let bmi = ScaleReading.bmi(weight: reading.kilograms, heightCm: height) {
                     LabeledContent("BMI", value: String(format: "%.1f", bmi))
-                } else { LabeledContent("BMI", value: "填写身高后计算") }
+                } else { LabeledContent("BMI", value: "健康中有身高后计算") }
                 Text("测量稳定后会自动保存；健康同步可在设置中管理。离开此页面或进入后台会断开体脂秤。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
@@ -107,6 +107,7 @@ struct WeightView: View {
                   })
         }
         .onAppear { health.refreshAuthorization() }
+        .task { await health.refreshProfile() }
         .onChange(of: scale.reading) { _, reading in
             guard reading?.stable == true, scale.canSave else { return }
             scale.save(heightCm: height)
@@ -117,7 +118,10 @@ struct WeightView: View {
         .onDisappear { scale.stop() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { scale.stop() }
-            if phase == .active { health.refreshAuthorization() }
+            if phase == .active {
+                health.refreshAuthorization()
+                Task { await health.refreshProfile() }
+            }
         }
     }
     private func profileInput(_ label: String, text: Binding<String>, unit: String,

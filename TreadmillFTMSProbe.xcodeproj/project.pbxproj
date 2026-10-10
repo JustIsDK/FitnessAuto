@@ -186,7 +186,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
 				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取已有运动和体重、BMI 记录，写入前检查是否与其他 APP 重复。";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取身高、出生日期、性别和最近体重，用于展示个人资料与计算 BMI；读取已有运动及体重、BMI 记录以检查重复。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将运动记录、距离和热量，以及你选择同步的体重与 BMI 写入苹果健康。";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -197,7 +197,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.TreadmillFTMSProbe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				MARKETING_VERSION = 1.0;
-				CURRENT_PROJECT_VERSION = 20261009.5;
+				CURRENT_PROJECT_VERSION = 20261010.1;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -218,7 +218,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
 				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取已有运动和体重、BMI 记录，写入前检查是否与其他 APP 重复。";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取身高、出生日期、性别和最近体重，用于展示个人资料与计算 BMI；读取已有运动及体重、BMI 记录以检查重复。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将运动记录、距离和热量，以及你选择同步的体重与 BMI 写入苹果健康。";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -229,7 +229,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.TreadmillFTMSProbe;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				MARKETING_VERSION = 1.0;
-				CURRENT_PROJECT_VERSION = 20261009.5;
+				CURRENT_PROJECT_VERSION = 20261010.1;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";

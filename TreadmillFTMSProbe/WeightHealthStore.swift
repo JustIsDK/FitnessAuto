@@ -15,6 +15,17 @@ struct WeightDuplicateReview: Identifiable {
     @Published private(set) var status = "请授权体重和 BMI 写入苹果健康"
     @Published var duplicateReview: WeightDuplicateReview?
     @Published private var completed: Set<String> = []
+    @Published private(set) var profileHeight: Double?
+    @Published private(set) var profileBirthDate: Date?
+    @Published private(set) var profileSex = "暂无可读取数据"
+    @Published private(set) var profileWeight: Double?
+    @Published private(set) var profileLoading = false
+    @Published private(set) var profileStatus = "资料来自苹果健康，可在健康 APP 中修改"
+    private let heightType = HKQuantityType(.height)
+    private var profileTypes: Set<HKObjectType> {
+        [heightType, weightType, HKObjectType.characteristicType(forIdentifier: .dateOfBirth)!,
+         HKObjectType.characteristicType(forIdentifier: .biologicalSex)!]
+    }
     private let health = HKHealthStore()
     private let weightType = HKQuantityType(.bodyMass)
     private let bmiType = HKQuantityType(.bodyMassIndex)
@@ -30,6 +41,49 @@ struct WeightDuplicateReview: Identifiable {
     func refreshAuthorization() {
         weightAuthorized = available && health.authorizationStatus(for: weightType) == .sharingAuthorized
         bmiAuthorized = available && health.authorizationStatus(for: bmiType) == .sharingAuthorized
+    }
+    func authorizeProfile() async {
+        guard available, !profileLoading else { return }
+        do {
+            try await health.requestAuthorization(toShare: [], read: profileTypes)
+            await refreshProfile()
+        } catch { profileStatus = "资料读取授权失败：\(error.localizedDescription)" }
+    }
+
+    func refreshProfile() async {
+        guard available, !profileLoading else { return }
+        profileLoading = true
+        defer { profileLoading = false }
+        profileBirthDate = (try? health.dateOfBirthComponents()).flatMap { Calendar.current.date(from: $0) }
+        switch try? health.biologicalSex().biologicalSex {
+        case .female: profileSex = "女"
+        case .male: profileSex = "男"
+        case .other: profileSex = "其他"
+        default: profileSex = "暂无可读取数据"
+        }
+        profileHeight = try? await latestValue(heightType, unit: .meterUnit(with: .centi))
+        profileWeight = try? await latestValue(weightType, unit: .gramUnit(with: .kilo))
+        // Existing scale initialization uses these keys. Clear unavailable
+        // values rather than silently using previously typed personal details.
+        let defaults = UserDefaults.standard
+        defaults.set(profileHeight.map { String($0) } ?? "", forKey: "fitnessauto.weight.heightCm")
+        defaults.set(profileWeight.map { String($0) } ?? "", forKey: "fitnessauto.weight.referenceKg")
+        let birth = profileBirthDate.map { Calendar.current.dateComponents([.year, .month], from: $0) }
+        defaults.set(birth?.year ?? 0, forKey: "fitnessauto.weight.birthYear")
+        defaults.set(birth?.month ?? 0, forKey: "fitnessauto.weight.birthMonth")
+        defaults.set(profileSex == "男" ? 1 : profileSex == "女" ? 0 : -1, forKey: "fitnessauto.weight.sex")
+        profileStatus = "资料来自苹果健康；无数据时请检查健康资料与读取权限"
+    }
+
+    private func latestValue(_ type: HKQuantityType, unit: HKUnit) async throws -> Double? {
+        try await withCheckedThrowingContinuation { continuation in
+            let predicate = HKQuery.predicateForSamples(withStart: nil, end: Date(), options: .strictEndDate)
+            health.execute(HKSampleQuery(sampleType: type, predicate: predicate, limit: 1,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)]) { _, samples, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: (samples?.first as? HKQuantitySample)?.quantity.doubleValue(for: unit)) }
+            })
+        }
     }
     private func key(_ record: WeightRecord, bmi: Bool) -> String {
         "FitnessAuto.Weight.\(record.id.uuidString).\(bmi ? "bmi" : "weight")"

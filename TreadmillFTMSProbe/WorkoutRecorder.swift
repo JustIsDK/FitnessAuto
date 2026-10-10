@@ -274,14 +274,8 @@ struct SettingsView: View {
     @EnvironmentObject private var recorder: WorkoutRecorder
     @EnvironmentObject private var weightHealth: WeightHealthStore
     @AppStorage("fitnessauto.weight.health.auto") private var autoWeightHealth = true
-    @AppStorage("fitnessauto.weight.heightCm") private var heightText = ""
-    @AppStorage("fitnessauto.weight.birthYear") private var birthYear = 0
-    @AppStorage("fitnessauto.weight.birthMonth") private var birthMonth = 0
-    @AppStorage("fitnessauto.weight.sex") private var sex = -1
-    @AppStorage("fitnessauto.weight.referenceKg") private var referenceText = ""
-    @State private var showingBirthMonthPicker = false
-    @FocusState private var inputFocused: Bool
-    private var age: Int? { ScaleBirthMonth.age(year: birthYear, month: birthMonth) }
+    @Environment(\.scenePhase) private var scenePhase
+    private let unavailable = "暂无可读取数据"
     var body: some View {
         List {
             Section {
@@ -289,6 +283,9 @@ struct SettingsView: View {
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
             Section("开关与权限") {
                 Toggle("自动同步体重到苹果健康", isOn: $autoWeightHealth)
+                Button("允许读取健康个人资料") {
+                    Task { await weightHealth.authorizeProfile() }
+                }.disabled(!weightHealth.available || weightHealth.profileLoading)
                 Button(recorder.healthAuthorized ? "苹果健康已授权" : "授权苹果健康") {
                     Task { await recorder.authorize() }
                 }.disabled(recorder.saving || recorder.healthAuthorized)
@@ -299,35 +296,14 @@ struct SettingsView: View {
                 Text(weightHealth.status).font(.footnote).foregroundStyle(.secondary)
             }
             Section("个人信息") {
-                HStack {
-                    Text("身高")
-                    Spacer()
-                    TextField("请输入", text: $heightText).keyboardType(.decimalPad).multilineTextAlignment(.trailing).focused($inputFocused)
-                    Text("cm").foregroundStyle(.secondary)
-                }
-                Button {
-                    inputFocused = false
-                    showingBirthMonthPicker = true
-                } label: {
-                    HStack {
-                        Text("出生年月")
-                        Spacer()
-                        Text(birthYear > 0 && (1...12).contains(birthMonth) ? "\(birthYear) 年 \(birthMonth) 月" : "请选择")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                LabeledContent("当前年龄", value: age.map { "\($0) 岁" } ?? "请选择出生年月")
-                Picker("性别", selection: $sex) {
-                    Text("请选择").tag(-1); Text("女").tag(0); Text("男").tag(1)
-                }.pickerStyle(.segmented)
-                HStack {
-                    Text("最近体重")
-                    Spacer()
-                    TextField("请输入", text: $referenceText).keyboardType(.decimalPad).multilineTextAlignment(.trailing).focused($inputFocused)
-                    Text("kg").foregroundStyle(.secondary)
-                }
-                Text("出生年月只需填写一次，测量时会自动计算年龄。")
-                    .font(.footnote).foregroundStyle(.secondary)
+                LabeledContent("身高", value: weightHealth.profileHeight.map { String(format: "%.1f cm", $0) } ?? unavailable)
+                LabeledContent("出生日期", value: weightHealth.profileBirthDate.map { $0.formatted(date: .numeric, time: .omitted) } ?? unavailable)
+                LabeledContent("当前年龄", value: weightHealth.profileBirthDate.map {
+                    "\(Calendar.current.dateComponents([.year], from: $0, to: Date()).year ?? 0) 岁"
+                } ?? unavailable)
+                LabeledContent("性别", value: weightHealth.profileSex)
+                LabeledContent("最近体重", value: weightHealth.profileWeight.map { String(format: "%.2f kg", $0) } ?? unavailable)
+                Text(weightHealth.profileStatus).font(.footnote).foregroundStyle(.secondary)
             }
             Section("APP 信息") {
                 LabeledContent("APP 构建", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "未知")
@@ -353,12 +329,9 @@ struct SettingsView: View {
         .appListStyle()
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
-        .scrollDismissesKeyboard(.interactively)
-        .sheet(isPresented: $showingBirthMonthPicker) {
-            BirthMonthPicker(year: birthYear, month: birthMonth) { year, month in
-                birthYear = year
-                birthMonth = month
-            }
+        .task { await weightHealth.refreshProfile() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await weightHealth.refreshProfile() } }
         }
     }
 }
