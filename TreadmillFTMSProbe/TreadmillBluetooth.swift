@@ -75,6 +75,7 @@ struct WorkoutPlan: Identifiable, Codable {
 }
 
 final class TreadmillBluetooth: NSObject, ObservableObject {
+    private let watchSession = WatchSessionCoordinator.shared
     let recorder = WorkoutRecorder()
     @Published private(set) var telemetryText = "运动数据尚未启用"
     @Published private(set) var deviceDistanceMeters: Double?
@@ -251,6 +252,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         workoutStepIndex = nil
         workoutStartedAt = ProcessInfo.processInfo.systemUptime
         startRecording()
+        watchSession.startWorkout(title: workoutPlan?.title ?? "跑步机训练", running: true)
         tickWorkout()
     }
 
@@ -305,6 +307,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         workoutStartedAt = nil
         workoutActive = false
         workoutPaused = true
+        watchSession.pauseWorkout()
         workoutExpectedTarget = nil
         workoutConfirmationDeadline = nil
         queuedVendorAction = nil
@@ -318,9 +321,11 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
               plan.validationError == nil, plan.steps.allSatisfy({ speedRange?.contains($0.speed) == true &&
                   inclineRange?.contains(Double($0.incline)) == true }) else { return }
         startOrContinueWorkout()
+        if let plan = workoutPlan { watchSession.resumeWorkout(title: plan.title, running: true) }
     }
 
     func endWorkout(reason: String = "计划已结束") {
+        watchSession.stopWorkout()
         queuedVendorAction = nil
         // Clear a pending start before pausing, to avoid recursive cancellation.
         workoutMotion = nil
