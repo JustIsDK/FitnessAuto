@@ -5,3 +5,7 @@
 计划模型和导入器分别位于 `FitnessAuto/TreadmillBluetooth.swift` 与 `FitnessAuto/PlanImport.swift`。修改格式或约束时同步更新文档、示例和 `Tests/verify_workout_data.py`，修改内置计划时验证 `Tests/verify_plans.py`。
 
 蓝牙控制依赖已验证的麦瑞克私有报文。启停写入成功或回显不是动作完成，需检查设备状态；构建及代码测试不能代替真机验证。新增 Swift 源文件需加入 Xcode 项目的显式 Sources 引用。
+
+修改训练页布局、启停按钮或运动记录删除交互前，先阅读 `Docs/TrainingPage.md`，并同步更新 `Docs/Design/training/` 效果图与对应验收项。仅审查本次修改区域；不得把示例状态截图当作真机启停验证。
+
+本轮设计交付不包含应用代码修改。外部 JSON 文件打开与分享导入的待实现方案见 `Docs/FileImport.md`；所有功能验收项需在实现后逐项验证，不能因存在效果图而标记完成。

@@ -60,3 +60,7 @@
 5. 在交付说明中列出每套总时长，说明尚未验证的真机目标。
 
 测试：`python3 Tests/verify_workout_data.py` 会使用实际 Swift 导入器读取仓库示例，并验证错误版本、错误字段、非法阶段和整批拒绝行为。
+
+## 外部文件入口（规划）
+
+AirDrop／文件分享打开 JSON 的功能尚待实现，设计与验收清单见 [FileImport.md](FileImport.md)。本节不改变现有 JSON 格式。
