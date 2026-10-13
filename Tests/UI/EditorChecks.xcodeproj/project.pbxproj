@@ -1,0 +1,17 @@
+// !$*UTF8*$!
+{ archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+000000000000000000000001 = {isa = PBXProject; attributes = {LastUpgradeCheck = 2700;}; buildConfigurationList = 000000000000000000000002; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; knownRegions = (en,Base); mainGroup = 000000000000000000000003; productRefGroup = 000000000000000000000004; projectDirPath = ""; projectRoot = ""; targets = (000000000000000000000005);};
+000000000000000000000002 = {isa = XCConfigurationList; buildConfigurations = (000000000000000000000006); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug;};
+000000000000000000000003 = {isa = PBXGroup; children = (000000000000000000000007,000000000000000000000004); sourceTree = "<group>";};
+000000000000000000000004 = {isa = PBXGroup; children = (000000000000000000000008); name = Products; sourceTree = "<group>";};
+000000000000000000000005 = {isa = PBXNativeTarget; buildConfigurationList = 000000000000000000000009; buildPhases = (00000000000000000000000A,00000000000000000000000B,00000000000000000000000C); buildRules = (); dependencies = (); name = EditorChecks; productName = EditorChecks; productReference = 000000000000000000000008; productType = "com.apple.product-type.bundle.ui-testing";};
+000000000000000000000006 = {isa = XCBuildConfiguration; name = Debug; buildSettings = {SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 17.0;};};
+000000000000000000000007 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorChecks.swift; sourceTree = "<group>";};
+000000000000000000000008 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EditorChecks.xctest; sourceTree = BUILT_PRODUCTS_DIR;};
+000000000000000000000009 = {isa = XCConfigurationList; buildConfigurations = (00000000000000000000000D); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug;};
+00000000000000000000000A = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (00000000000000000000000E); runOnlyForDeploymentPostprocessing = 0;};
+00000000000000000000000B = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+00000000000000000000000C = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+00000000000000000000000D = {isa = XCBuildConfiguration; name = Debug; buildSettings = {PRODUCT_BUNDLE_IDENTIFIER = com.fitnessauto.EditorChecks; PRODUCT_NAME = "$(TARGET_NAME)"; GENERATE_INFOPLIST_FILE = YES; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; IPHONEOS_DEPLOYMENT_TARGET = 17.0; TARGETED_DEVICE_FAMILY = 1; CODE_SIGNING_ALLOWED = NO; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks","@loader_path/Frameworks");};};
+00000000000000000000000E = {isa = PBXBuildFile; fileRef = 000000000000000000000007;};
+}; rootObject = 000000000000000000000001; }

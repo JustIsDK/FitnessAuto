@@ -215,6 +215,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
 
     var workoutStartBlockReason: String? {
         guard appIsActive else { return "请回到 APP 前台后开始训练" }
+        guard !stopNeedsRetry else { return "尚未确认停机，请先重试停止或使用实体停止键" }
         guard connected else { return "请先连接跑步机" }
         guard vendorSubscribed, vendorAuthorized else { return "正在准备跑步机控制连接，请稍候" }
         guard !workoutActive, workoutMotion == nil else { return "正在执行训练或启停操作" }

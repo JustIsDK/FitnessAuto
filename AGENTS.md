@@ -8,4 +8,4 @@
 
 修改训练页布局、启停按钮或运动记录删除交互前，先阅读 `Docs/TrainingPage.md`，并同步更新 `Docs/Design/training/` 效果图与对应验收项。仅审查本次修改区域；不得把示例状态截图当作真机启停验证。
 
-本轮设计交付不包含应用代码修改。外部 JSON 文件打开与分享导入的待实现方案见 `Docs/FileImport.md`；所有功能验收项需在实现后逐项验证，不能因存在效果图而标记完成。
+外部 JSON 文件打开与分享导入的行为及边界见 `Docs/FileImport.md`。功能验收项需按实际证据更新，不能因存在效果图而标记完成。局部 UI 检查可运行 `python3 Tests/run_changed_ui.py SIMULATOR_UUID`，仅使用专用测试模拟器。

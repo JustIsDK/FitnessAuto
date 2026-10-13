@@ -1,5 +1,27 @@
 import Foundation
 
+enum TrainingActionState: String {
+    case idle, starting, running, paused, stopping, stopUnconfirmed
+
+    init(active: Bool, starting: Bool, paused: Bool, stopping: Bool, stopNeedsRetry: Bool) {
+        if stopping { self = .stopping }
+        else if stopNeedsRetry { self = .stopUnconfirmed }
+        else if starting { self = .starting }
+        else if active { self = .running }
+        else if paused { self = .paused }
+        else { self = .idle }
+    }
+    var usesStopAction: Bool { self != .idle }
+    var primaryTitle: String {
+        switch self {
+        case .idle: return "开始训练"
+        case .stopping: return "正在停止…"
+        case .stopUnconfirmed: return "重试停止"
+        default: return "停止训练"
+        }
+    }
+}
+
 enum MerachMotionCommand {
     // Start/stop frames observed in the official APP capture on this device.
     static let start: [UInt8] = [0x02, 0x53, 0x09, 0x5A, 0x03]

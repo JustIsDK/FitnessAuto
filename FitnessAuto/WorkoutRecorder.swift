@@ -365,26 +365,28 @@ struct WorkoutRecordsView: View {
         }.appListStyle()
             .navigationTitle("运动记录")
             .navigationBarTitleDisplayMode(.inline)
-            .confirmationDialog("删除这条运动记录？", isPresented: Binding(
-                get: { deletingRecord != nil }, set: { if !$0 { deletingRecord = nil } }),
-                titleVisibility: .visible, presenting: deletingRecord) { record in
-                Button("删除运动记录", role: .destructive) { Task { await recorder.delete(record) } }
-                Button("取消", role: .cancel) { }
-            } message: { record in
-                Text(record.healthSaved ? "本机记录及本 APP 写入的对应苹果健康数据会一起删除。" : "删除后无法恢复。")
-            }
             .onAppear { recorder.refreshHealthAuthorization() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { recorder.refreshHealthAuthorization() }
             }
-            .alert(item: $recorder.duplicateReview) { review in
-                Alert(title: Text("可能是同一段运动"),
-                      message: Text("苹果健康中已有来自 \(review.sources) 的重叠运动记录。若是同一段运动，请取消写入，本机记录会保留。"),
-                      primaryButton: .cancel(Text("取消写入")),
-                      secondaryButton: .default(Text("仍然写入")) {
-                          Task { await recorder.saveToHealth(review.record, allowDuplicate: true) }
-                      })
-            }
+            .alert(deletingRecord != nil ? "删除这条运动记录？" : "可能是同一段运动", isPresented: Binding(
+                get: { deletingRecord != nil || recorder.duplicateReview != nil },
+                set: { if !$0 { deletingRecord = nil; recorder.duplicateReview = nil } })) {
+                    if let record = deletingRecord {
+                        Button("取消", role: .cancel) { }
+                        Button("删除", role: .destructive) { Task { await recorder.delete(record) } }
+                    } else if let review = recorder.duplicateReview {
+                        Button("取消写入", role: .cancel) { }
+                        Button("仍然写入") { Task { await recorder.saveToHealth(review.record, allowDuplicate: true) } }
+                    }
+                } message: {
+                    if let record = deletingRecord {
+                        Text("\(record.title)\n\(record.start?.formatted(date: .abbreviated, time: .shortened) ?? "未知时间") · \(clock(Int(record.duration)))\n" +
+                             (record.healthSaved ? "本机记录及本 APP 写入的对应苹果健康数据会一起删除。删除后无法恢复。" : "仅删除这条本机记录，删除后无法恢复。"))
+                    } else if let review = recorder.duplicateReview {
+                        Text("苹果健康中已有来自 \(review.sources) 的重叠运动记录。若是同一段运动，请取消写入，本机记录会保留。")
+                    }
+                }
     }
 }
 

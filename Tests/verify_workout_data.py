@@ -12,7 +12,7 @@ start_gate = bluetooth[bluetooth.index("    var canStartWorkout:"):bluetooth.ind
 start_checks = r'''
 struct StartProbe {
     var appIsActive = true, connected = true, vendorAuthorized = true, vendorSubscribed = true
-    var readyForMotion = false, workoutActive = false
+    var readyForMotion = false, workoutActive = false, stopNeedsRetry = false
     var workoutMotion: WorkoutMotionTransition? = nil
     var lastVendorReportUptime: Double? = ProcessInfo.processInfo.systemUptime
     var vendorMachineState: UInt8? = 0x0A
@@ -33,9 +33,17 @@ gate.connected = false; assert(!gate.canStartWorkout); gate.connected = true
 gate.vendorAuthorized = false; assert(!gate.canStartWorkout); gate.vendorAuthorized = true
 gate.vendorSubscribed = false; assert(!gate.canStartWorkout); gate.vendorSubscribed = true
 gate.appIsActive = false; assert(!gate.canStartWorkout); gate.appIsActive = true
+gate.stopNeedsRetry = true; assert(!gate.canStartWorkout); gate.stopNeedsRetry = false
 gate.workoutMotion = WorkoutMotionTransition(kind: .start, deadline: 15); assert(!gate.canStartWorkout)
 '''.replace("START_GATE", start_gate)
 checks = r'''
+assert(TrainingActionState(active: true, starting: true, paused: true, stopping: true, stopNeedsRetry: true) == .stopping)
+assert(TrainingActionState(active: true, starting: true, paused: true, stopping: false, stopNeedsRetry: true) == .stopUnconfirmed)
+assert(TrainingActionState(active: true, starting: true, paused: true, stopping: false, stopNeedsRetry: false) == .starting)
+assert(TrainingActionState(active: true, starting: false, paused: true, stopping: false, stopNeedsRetry: false) == .running)
+assert(TrainingActionState(active: false, starting: false, paused: true, stopping: false, stopNeedsRetry: false) == .paused)
+assert(TrainingActionState.idle.primaryTitle == "开始训练" && !TrainingActionState.idle.usesStopAction)
+assert(TrainingActionState.stopUnconfirmed.primaryTitle == "重试停止" && TrainingActionState.starting.usesStopAction)
 func u16(_ n: Int) -> [UInt8] { [UInt8(n & 255), UInt8((n >> 8) & 255)] }
 // All optional fields before distance, energy and elapsed exercise offsets.
 let flags = 0x1FFE

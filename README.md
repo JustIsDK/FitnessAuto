@@ -106,4 +106,6 @@ xcodebuild -quiet -project FitnessAuto.xcodeproj -scheme FitnessAuto -destinatio
 
 ### 训练页与删除交互改进
 
-[功能说明和可验收 checklist](Docs/TrainingPage.md) · [设计效果图](Docs/Design/training/index.html)。包含训练页排布、启停状态切换、阶段表跳转及 BUG-001 删除确认框的修复设计。当前仅交付规划，未修改应用代码。
+[功能说明和可验收 checklist](Docs/TrainingPage.md) · [设计效果图](Docs/Design/training/index.html)。包含训练页排布、启停状态切换、阶段表跳转及 BUG-001 删除确认框的修复设计。已实现训练页布局与启停按钮、居中删除确认及外部 JSON 文件预览导入。AirDrop／分享菜单、跑步机及苹果健康的真机验收状态详见文档。
+
+导入实现与边界见 [Docs/FileImport.md](Docs/FileImport.md)；局部 UI 检查见 [Tests/UI/README.md](Tests/UI/README.md)。

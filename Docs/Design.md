@@ -15,7 +15,7 @@
 
 底部 Tab 分为“训练”“计划库”“体重管理”“运动记录”“设置”五个区域。训练页将设备数据、计划选择与控制合并在一个卡片内。计划库按自定义、内置、导入排列。体重页展示测量与趋势，秤自动扫描连接；运动记录页展示趋势与记录。个人资料、健康授权、自动同步开关、关于和诊断集中在设置。
 
-训练页及记录删除的待实现布局、状态契约、BUG-001 和验收清单见 [TrainingPage.md](TrainingPage.md)，[效果图](Design/training/index.html) 为设计原型，并非已发布界面。
+训练页及记录删除的布局、状态契约、BUG-001 和验收清单见 [TrainingPage.md](TrainingPage.md)，[效果图](Design/training/index.html) 包含实际组件的模拟器截图与交互示意；真机动作仍按独立 checklist 验收。
 
 复用组件位于 `FitnessAuto/AppDesign.swift`。新增页面优先使用这些组件与语义颜色，避免另建一套按钮、卡片或数字字体。
 

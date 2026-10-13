@@ -6,186 +6,219 @@ struct ContentView: View {
     @EnvironmentObject private var library: PlanLibrary
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("fitnessauto.training.selectedPlanID") private var selectedPlanID = 1
-    @State private var showingStagePicker = false
+    @State private var selectedTab = 0
+    @State private var trainingError: String?
     @State private var showingTreadmillConnection = false
     private var selectedPlan: WorkoutPlan { library.plans.first { $0.id == selectedPlanID } ?? WorkoutPlan.presets[0] }
     private var displayPlan: WorkoutPlan { bluetooth.currentPlan ?? selectedPlan }
     private var availablePlanIDs: [Int] { library.plans.map(\.id) }
-
-    private func validateSelectedPlan(_ ids: [Int]) {
-        if !ids.contains(selectedPlanID) { selectedPlanID = ids.first ?? 1 }
+    private var importBlocked: Bool { bluetooth.workoutBusy || bluetooth.workoutPaused || bluetooth.stopNeedsRetry }
+    private var actionState: TrainingActionState {
+        TrainingActionState(active: bluetooth.workoutActive, starting: bluetooth.workoutStarting,
+                            paused: bluetooth.workoutPaused, stopping: bluetooth.workoutStopping,
+                            stopNeedsRetry: bluetooth.stopNeedsRetry)
+    }
+    private var trainingMessage: String? {
+        switch actionState {
+        case .starting: return "等待跑步机倒计时及运行确认"
+        case .paused, .stopUnconfirmed: return bluetooth.workoutMessage
+        case .idle: return bluetooth.workoutStartBlockReason
+        case .running, .stopping: return nil
+        }
+    }
+    private func routePendingImport() {
+        guard !library.pendingImports.isEmpty, !importBlocked, !showingTreadmillConnection,
+              trainingError == nil else { return }
+        selectedTab = 1
     }
 
     var body: some View {
-        TabView {
-            NavigationStack {
-            List {
-                Section {
-                    VStack(alignment: .leading, spacing: 18) {
-                        HStack {
-                            Label("跑步机", systemImage: "figure.run").font(.headline)
-                            Spacer()
-                            Button {
-                                showingTreadmillConnection = true
-                            } label: {
-                                ConnectionBadge(title: bluetooth.connected ? "已连接" : bluetooth.isConnecting ? "连接中" : bluetooth.isScanning ? "扫描中" : "等待连接", connected: bluetooth.connected)
-                                    .frame(minHeight: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("treadmillConnection")
-                            .accessibilityHint("打开跑步机设备列表")
-                        }
-                        HStack(spacing: 12) {
-                            MetricTile(title: "当前速度", value: bluetooth.liveSpeed.map { String(format: "%.1f", $0) } ?? "—", unit: "km/h", icon: "speedometer")
-                            MetricTile(title: "当前坡度", value: bluetooth.liveIncline.map(String.init) ?? "—", unit: "%", icon: "mountain.2")
-                        }
-                    }.padding(.vertical, 8)
-                    Picker("选择计划", selection: $selectedPlanID) {
-                        ForEach(library.plans) { Text($0.title).tag($0.id) }
-                    }.disabled(bluetooth.workoutBusy || bluetooth.workoutPaused)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(displayPlan.title).font(.title3.weight(.semibold))
-                        Text("按阶段自动调整速度与坡度").font(.caption).foregroundStyle(.secondary)
-                    }.padding(.vertical, 4)
-                    HStack {
-                        Label("\(displayPlan.duration / 60) 分钟", systemImage: "clock")
-                        Spacer()
-                        Text("\(displayPlan.steps.count) 个阶段")
-                    }.foregroundStyle(.secondary)
-                    if bluetooth.currentPlan != nil {
-                        ProgressView(value: Double(bluetooth.workoutElapsed), total: Double(displayPlan.duration))
-                        HStack {
-                            Text("计划进度 \(clock(bluetooth.workoutElapsed))")
-                            Spacer()
-                            Text("剩余 \(clock(max(0, displayPlan.duration - bluetooth.workoutElapsed)))")
-                        }.font(.caption).monospacedDigit()
-                        if let stage = bluetooth.currentStep {
-                            Text(stage.title).font(.headline)
-                            Text(String(format: "目标 %.1f km/h · 坡度 %d%%", stage.speed, stage.incline))
-                            Text("本阶段剩余 \(clock(max(0, stage.start + stage.duration - bluetooth.workoutElapsed)))")
-                                .font(.caption).monospacedDigit()
-                        }
-                    }
-                    Text(bluetooth.workoutMessage).font(.subheadline).foregroundStyle(.secondary)
-                    Text("检查安全夹后点击开始训练，跑步机会自动启动；倒计时结束并确认运行后开始计划计时。")
-                        .font(.caption).foregroundStyle(.secondary)
-                    if bluetooth.workoutStarting {
-                        ProgressView("正在启动跑步机…")
-                    } else if bluetooth.workoutStopping {
-                        ProgressView("正在确认停机…")
-                    } else if bluetooth.workoutActive {
-                        Button("暂停自动调节", systemImage: "pause.fill") { bluetooth.pauseWorkout() }
-                        Button("下一阶段", systemImage: "forward.end.fill") { bluetooth.jumpToNextStage() }
-                            .disabled(!bluetooth.canJumpNextStage)
-                        Button("跳转到指定阶段", systemImage: "list.number") { showingStagePicker = true }
-                            .disabled(!bluetooth.canJumpStage)
-                        Text("跳转会立即调整速度和坡度，从目标阶段开头计时；运动记录仍按实际运动累计。")
-                            .font(.footnote).foregroundStyle(.secondary)
-                    } else if bluetooth.workoutPaused {
-                        Button("继续训练", systemImage: "play.fill") { bluetooth.resumeWorkout() }
-                            .buttonStyle(AppPrimaryButtonStyle())
-                            .disabled(!bluetooth.canStartWorkout)
-                    } else {
-                        Button("开始训练", systemImage: "play.fill") {
-                            bluetooth.startWorkout(selectedPlan)
-                        }.buttonStyle(AppPrimaryButtonStyle())
-                            .disabled(!bluetooth.canStartWorkout)
-                    }
-                    if !bluetooth.workoutBusy, let reason = bluetooth.workoutStartBlockReason {
-                        Text(reason).font(.caption).foregroundStyle(.secondary)
-                    }
-                    if bluetooth.workoutActive || bluetooth.workoutPaused || bluetooth.workoutStarting {
-                        Button("结束计划并停止跑步机", role: .destructive) { bluetooth.endWorkout() }
-                    }
-                    if bluetooth.stopNeedsRetry || (!bluetooth.workoutBusy && !bluetooth.workoutPaused && bluetooth.liveSpeed != nil) {
-                        Button(bluetooth.stopNeedsRetry ? "重试停止跑步机" : "停止跑步机", role: .destructive) {
-                            bluetooth.endWorkout(reason: "已请求停止")
-                        }.disabled(!bluetooth.canStopTreadmill)
-                    }
-                    DisclosureGroup("查看完整阶段表") {
-                        ForEach(displayPlan.steps) { step in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\(clock(step.start))–\(clock(step.start + step.duration)) · \(step.title)")
-                                Text(String(format: "%.1f km/h · 坡度 %d%%", step.speed, step.incline)).foregroundStyle(.secondary)
-                            }.font(.caption).monospacedDigit()
-                        }
-                    }
-                }
-            }
-            .appListStyle()
-            .navigationTitle("训练")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showingTreadmillConnection) {
-                TreadmillConnectionView()
-            }
-            .sheet(isPresented: $showingStagePicker) {
-                NavigationStack {
-                    List {
-                        Section {
-                            Text("选择后立即应用该阶段的参数，并从阶段开头重新计时。")
-                                .font(.footnote).foregroundStyle(.secondary)
-                        }
-                        ForEach(Array(displayPlan.steps.enumerated()), id: \.element.id) { index, step in
-                            Button {
-                                bluetooth.jumpToStage(at: index)
-                                showingStagePicker = false
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack {
-                                        Text("第\(index + 1)阶段 · \(step.title)")
-                                        if bluetooth.currentStageIndex == index {
-                                            Text("当前").font(.caption).foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    Text(String(format: "%.1f km/h · 坡度 %d%% · %@", step.speed, step.incline, clock(step.duration)))
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                            }.disabled(!bluetooth.canJumpStage)
-                        }
-                    }
-                    .appListStyle()
-                    .navigationTitle("跳转阶段")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("取消") { showingStagePicker = false }
-                        }
-                    }
-                }
-            }
-            .onChange(of: availablePlanIDs, initial: true) { _, ids in
-                validateSelectedPlan(ids)
-            }
-            .onChange(of: scenePhase) { _, phase in
-                bluetooth.setAppActive(phase == .active, background: phase == .background)
-            }
-            .onChange(of: bluetooth.workoutBusy) { _, busy in UIApplication.shared.isIdleTimerDisabled = busy }
-            }
-            .tabItem { Label("训练", systemImage: "figure.run") }
-
-            NavigationStack {
-                PlanLibraryView()
-            }
-            .tabItem { Label("计划库", systemImage: "list.bullet.rectangle") }
-
-            NavigationStack {
-                WeightView()
-            }
-            .tabItem { Label("体重管理", systemImage: "scalemass") }
-
-            NavigationStack {
-                WorkoutRecordsView()
-            }
-            .tabItem { Label("运动记录", systemImage: "heart.text.square") }
-
-            NavigationStack {
-                SettingsView()
-            }
-            .tabItem { Label("设置", systemImage: "gearshape") }
+        TabView(selection: $selectedTab) {
+            NavigationStack { trainingContent }
+                .tabItem { Label("训练", systemImage: "figure.run") }.tag(0)
+            NavigationStack { PlanLibraryView(isSelected: selectedTab == 1, presentationBlocked: showingTreadmillConnection || trainingError != nil) }
+                .tabItem { Label("计划库", systemImage: "list.bullet.rectangle") }.tag(1)
+            NavigationStack { WeightView() }
+                .tabItem { Label("体重管理", systemImage: "scalemass") }.tag(2)
+            NavigationStack { WorkoutRecordsView() }
+                .tabItem { Label("运动记录", systemImage: "heart.text.square") }.tag(3)
+            NavigationStack { SettingsView() }
+                .tabItem { Label("设置", systemImage: "gearshape") }.tag(4)
         }
+        .onOpenURL { file in library.receiveImport(file) }
+        .onChange(of: library.pendingImports.map(\.id), initial: true) { _, _ in routePendingImport() }
+        .onChange(of: importBlocked) { _, _ in routePendingImport() }
+        .onChange(of: showingTreadmillConnection) { _, shown in if !shown { routePendingImport() } }
+        .onChange(of: trainingError) { _, error in if error == nil { routePendingImport() } }
+        .onChange(of: availablePlanIDs, initial: true) { _, ids in
+            if !ids.contains(selectedPlanID) { selectedPlanID = ids.first ?? 1 }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            bluetooth.setAppActive(phase == .active, background: phase == .background)
+        }
+        .onChange(of: bluetooth.workoutBusy) { _, busy in UIApplication.shared.isIdleTimerDisabled = busy }
     }
 
+    @ViewBuilder private var trainingContent: some View {
+#if DEBUG && targetEnvironment(simulator)
+        if let state = TrainingDesignPreview.requestedState { TrainingDesignPreview(state: state) }
+        else { trainingList }
+#else
+        trainingList
+#endif
+    }
+
+    private var trainingList: some View {
+        List {
+            Section {
+                TreadmillStatusCard(speed: bluetooth.liveSpeed, incline: bluetooth.liveIncline,
+                    connected: bluetooth.connected,
+                    connectionTitle: bluetooth.connected ? "已连接" : bluetooth.isConnecting ? "连接中" : bluetooth.isScanning ? "扫描中" : "等待连接") {
+                        showingTreadmillConnection = true
+                    }
+                Picker("选择计划", selection: Binding(
+                    get: { displayPlan.id }, set: { selectedPlanID = $0 })) {
+                    ForEach(library.plans) { Text($0.title).tag($0.id) }
+                    if let current = bluetooth.currentPlan, !availablePlanIDs.contains(current.id) {
+                        Text(current.title).tag(current.id)
+                    }
+                }.disabled(actionState.usesStopAction)
+                TrainingPlanControls(plan: displayPlan, state: actionState,
+                    elapsed: bluetooth.currentPlan == nil ? nil : bluetooth.workoutElapsed,
+                    message: trainingMessage,
+                    primaryEnabled: actionState.usesStopAction ? bluetooth.canStopTreadmill : bluetooth.canStartWorkout,
+                    canResume: bluetooth.canStartWorkout,
+                    canJumpNext: bluetooth.canJumpNextStage, canJumpStage: bluetooth.canJumpStage,
+                    onPrimary: {
+                        if actionState.usesStopAction { bluetooth.endWorkout() }
+                        else {
+                            bluetooth.startWorkout(selectedPlan)
+                            if !bluetooth.workoutBusy { trainingError = bluetooth.workoutMessage }
+                        }
+                    }, onResume: { bluetooth.resumeWorkout() },
+                    onNext: { bluetooth.jumpToNextStage() }, onStage: { bluetooth.jumpToStage(at: $0) })
+            }
+            if importBlocked && !library.pendingImports.isEmpty {
+                Section {
+                    Text("文件已接收，训练结束后可导入（\(library.pendingImports.count) 个）")
+                        .font(.footnote).accessibilityIdentifier("pendingImportNotice")
+                }
+            }
+        }
+        .appListStyle()
+        .navigationTitle("训练")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingTreadmillConnection) { TreadmillConnectionView() }
+        .alert("无法开始训练", isPresented: Binding(
+            get: { trainingError != nil }, set: { if !$0 { trainingError = nil } })) {
+                Button("知道了") { trainingError = nil }
+            } message: { Text(trainingError ?? "") }
+    }
+}
+
+private struct TreadmillStatusCard: View {
+    let speed: Double?
+    let incline: Int?
+    let connected: Bool
+    let connectionTitle: String
+    var onConnect: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Label("跑步机", systemImage: "figure.run").font(.headline)
+                Spacer()
+                Button(action: onConnect) {
+                    ConnectionBadge(title: connectionTitle, connected: connected)
+                        .frame(minHeight: 44).contentShape(Rectangle())
+                }.buttonStyle(.plain).accessibilityIdentifier("treadmillConnection")
+                    .accessibilityHint("打开跑步机设备列表")
+            }
+            HStack(spacing: 12) {
+                MetricTile(title: "当前速度", value: speed.map { String(format: "%.1f", $0) } ?? "—", unit: "km/h", icon: "speedometer")
+                MetricTile(title: "当前坡度", value: incline.map(String.init) ?? "—", unit: "%", icon: "mountain.2")
+            }
+        }.padding(.vertical, 8)
+    }
+}
+
+private struct TrainingPlanControls: View {
+    let plan: WorkoutPlan
+    let state: TrainingActionState
+    let elapsed: Int?
+    let message: String?
+    let primaryEnabled: Bool
+    let canResume: Bool
+    let canJumpNext: Bool
+    let canJumpStage: Bool
+    var onPrimary: () -> Void
+    var onResume: () -> Void
+    var onNext: () -> Void
+    var onStage: (Int) -> Void
+    private var currentIndex: Int? { elapsed.flatMap { plan.stepIndex(at: $0) } }
+
+    var body: some View {
+        Button(action: onPrimary) {
+            HStack(spacing: 8) {
+                if state == .stopping { ProgressView().tint(.white) }
+                else { Image(systemName: state.usesStopAction ? "stop.fill" : "play.fill") }
+                Text(state.primaryTitle)
+            }
+        }
+        .buttonStyle(AppPrimaryButtonStyle(tint: state.usesStopAction ? AppDesign.destructive : AppDesign.accent,
+                                          keepsTintWhenDisabled: state.usesStopAction))
+        .disabled(!primaryEnabled || state == .stopping)
+        .accessibilityIdentifier("trainingPrimaryAction")
+        if let message {
+            Text(message).font(.caption).foregroundStyle(state == .stopUnconfirmed ? Color.red : Color.secondary)
+                .accessibilityIdentifier("trainingStatus")
+        }
+        if state == .paused {
+            Button("继续训练", systemImage: "play.fill", action: onResume)
+                .disabled(!canResume).accessibilityIdentifier("trainingResume")
+        }
+        HStack {
+            Label(plan.duration % 60 == 0 ? "\(plan.duration / 60) 分钟" : "\(plan.duration / 60) 分 \(plan.duration % 60) 秒", systemImage: "clock")
+            Spacer()
+            Text("\(plan.steps.count) 个阶段")
+        }.foregroundStyle(.secondary)
+        if let elapsed {
+            VStack(alignment: .leading, spacing: 14) {
+                ProgressView(value: Double(min(max(0, elapsed), plan.duration)), total: Double(plan.duration))
+                HStack {
+                    Text("计划进度 \(clock(elapsed))")
+                    Spacer()
+                    Text("剩余 \(clock(max(0, plan.duration - elapsed)))")
+                }.font(.caption).monospacedDigit()
+                if let index = currentIndex {
+                    Text(String(format: "目标 %.1f km/h · 坡度 %d%%", plan.steps[index].speed, plan.steps[index].incline))
+                        .font(.headline).monospacedDigit().accessibilityIdentifier("trainingTarget")
+                }
+            }.padding(.vertical, 6)
+        }
+        if state == .running {
+            Button("下一阶段", systemImage: "forward.end.fill", action: onNext)
+                .disabled(!canJumpNext).accessibilityIdentifier("trainingNextStage")
+        }
+        DisclosureGroup("查看完整阶段表") {
+            ForEach(Array(plan.steps.enumerated()), id: \.element.id) { index, step in
+                if state == .running {
+                    Button { onStage(index) } label: { stageRow(step, index: index) }
+                        .disabled(!canJumpStage).accessibilityIdentifier("trainingStage-\(index)")
+                        .accessibilityHint("从这个阶段开头继续训练，并立即调整速度和坡度")
+                } else { stageRow(step, index: index) }
+            }
+        }
+    }
+    private func stageRow(_ step: WorkoutStep, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("第\(index + 1)阶段 · \(step.title)")
+                if currentIndex == index { Text("当前").foregroundStyle(AppDesign.accent) }
+            }
+            Text("\(clock(step.start))–\(clock(step.start + step.duration)) · " + String(format: "%.1f km/h · 坡度 %d%%", step.speed, step.incline))
+                .foregroundStyle(.secondary)
+        }.font(.caption).monospacedDigit().foregroundStyle(.primary)
+    }
 }
 
 private struct TreadmillConnectionView: View {
@@ -348,3 +381,47 @@ struct DiagnosticsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
+
+#if DEBUG && targetEnvironment(simulator)
+// Fixtures reuse production controls; no Bluetooth actions are sent from this view.
+private struct TrainingDesignPreview: View {
+    static var requestedState: TrainingActionState? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "--training-design"), args.indices.contains(index + 1) else { return nil }
+        return TrainingActionState(rawValue: args[index + 1])
+    }
+    @State var state: TrainingActionState
+    @State private var selectedID = 101
+    @State private var elapsed = 19
+    private let plan = WorkoutPlan(id: 101, title: "DXN M2", steps: [
+        WorkoutStep(id: 0, start: 0, duration: 20, title: "阶段 01", speed: 5, incline: 0),
+        WorkoutStep(id: 1, start: 20, duration: 40, title: "阶段 02", speed: 6, incline: 2),
+        WorkoutStep(id: 2, start: 60, duration: 60, title: "阶段 03", speed: 5, incline: 6)
+    ] + (3..<18).map { WorkoutStep(id: $0, start: 120 + ($0 - 3) * 72, duration: 72,
+                                  title: String(format: "阶段 %02d", $0 + 1), speed: 5, incline: 4) })
+    private var canJumpNext: Bool {
+        guard let index = plan.stepIndex(at: elapsed) else { return false }
+        return plan.steps.indices.contains(index + 1)
+    }
+    var body: some View {
+        List {
+            Section {
+                TreadmillStatusCard(speed: state == .idle ? 0 : 5, incline: 0, connected: true,
+                                    connectionTitle: "已连接", onConnect: {})
+                Picker("选择计划", selection: $selectedID) { Text(plan.title).tag(plan.id) }
+                    .disabled(state.usesStopAction)
+                TrainingPlanControls(plan: plan, state: state,
+                    elapsed: [.running, .paused, .starting].contains(state) ? elapsed : nil,
+                    message: state == .paused ? "连接中断，计划已暂停；检查面板后继续" :
+                        state == .stopUnconfirmed ? "未确认停机，请立即使用实体停止键" :
+                        state == .starting ? "等待跑步机倒计时及运行确认" : nil,
+                    primaryEnabled: true, canResume: true, canJumpNext: canJumpNext, canJumpStage: true,
+                    onPrimary: { state = state == .idle ? .starting : .stopping },
+                    onResume: { state = .running },
+                    onNext: { if let index = plan.stepIndex(at: elapsed), plan.steps.indices.contains(index + 1) { elapsed = plan.steps[index + 1].start } },
+                    onStage: { elapsed = plan.steps[$0].start })
+            }
+        }.appListStyle().navigationTitle("训练").navigationBarTitleDisplayMode(.inline)
+    }
+}
+#endif

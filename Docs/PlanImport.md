@@ -61,6 +61,6 @@
 
 测试：`python3 Tests/verify_workout_data.py` 会使用实际 Swift 导入器读取仓库示例，并验证错误版本、错误字段、非法阶段和整批拒绝行为。
 
-## 外部文件入口（规划）
+## 外部文件入口
 
-AirDrop／文件分享打开 JSON 的功能尚待实现，设计与验收清单见 [FileImport.md](FileImport.md)。本节不改变现有 JSON 格式。
+现在可通过“用 FitnessAuto 打开”接收 JSON 文件，先预览再确认导入；AirDrop／分享菜单真机验收状态见 [FileImport.md](FileImport.md)。本节不改变现有 JSON 格式。

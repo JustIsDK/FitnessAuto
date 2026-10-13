@@ -7,6 +7,7 @@ enum AppDesign {
             ? UIColor(red: 0.40, green: 0.84, blue: 0.73, alpha: 1)
             : UIColor(red: 0.04, green: 0.40, blue: 0.32, alpha: 1)
     })
+    static let destructive = Color(red: 0.76, green: 0.12, blue: 0.16)
     static let background = Color(uiColor: .systemGroupedBackground)
     static let surface = Color(uiColor: .secondarySystemGroupedBackground)
 }
@@ -78,14 +79,16 @@ struct MetricTile: View {
 }
 
 struct AppPrimaryButtonStyle: ButtonStyle {
+    var tint: Color = AppDesign.accent
+    var keepsTintWhenDisabled = false
     @Environment(\.isEnabled) private var enabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: 52)
-            .foregroundStyle(enabled ? Color.white : Color.secondary)
-            .background(enabled ? AppDesign.accent : Color(uiColor: .tertiarySystemFill),
+            .foregroundStyle(enabled || keepsTintWhenDisabled ? Color.white : Color.secondary)
+            .background(enabled ? tint : keepsTintWhenDisabled ? tint.opacity(0.65) : Color(uiColor: .tertiarySystemFill),
                         in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .opacity(configuration.isPressed ? 0.82 : 1)
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
@@ -96,6 +99,7 @@ struct AppPrimaryButtonStyle: ButtonStyle {
 struct PlanSummaryRow: View {
     let plan: WorkoutPlan
     let icon: String
+    var showsChevron = true
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: icon).font(.title3).foregroundStyle(AppDesign.accent)
@@ -103,11 +107,13 @@ struct PlanSummaryRow: View {
                 .background(AppDesign.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
             VStack(alignment: .leading, spacing: 5) {
                 Text(plan.title).font(.headline).foregroundStyle(.primary)
-                Text("\(plan.duration / 60) 分钟 · \(plan.steps.count) 个阶段")
+                Text((plan.duration % 60 == 0 ? "\(plan.duration / 60) 分钟" : "\(plan.duration / 60) 分 \(plan.duration % 60) 秒") + " · \(plan.steps.count) 个阶段")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
-            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+            if showsChevron {
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+            }
         }.padding(.vertical, 6)
     }
 }

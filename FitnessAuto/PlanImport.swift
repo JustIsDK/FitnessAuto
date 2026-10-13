@@ -53,3 +53,44 @@ struct PlanImportDocument: Decodable {
         }
     }
 }
+
+struct PendingPlanImport: Identifiable, Codable {
+    let id: UUID
+    let fileName: String
+    let sourceKey: String
+    var plans: [WorkoutPlan]?
+    var failure: String?
+    var committedPlanIDs: [Int]?
+    var receiving: Bool { plans == nil && failure == nil }
+}
+
+// Bound the read before decoding; a file provider can change size after metadata is read.
+enum PlanImportFile {
+    static func prepare(_ source: URL, staged: URL) throws -> [WorkoutPlan] {
+        guard source.isFileURL, source.pathExtension.lowercased() == "json" else {
+            throw PlanImportError(message: "请选择 JSON 计划文件")
+        }
+        var coordinatorError: NSError?
+        var result: Result<[WorkoutPlan], Error>?
+        NSFileCoordinator().coordinate(readingItemAt: source, options: [], error: &coordinatorError) { url in
+            result = Result {
+                let values = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+                guard values.isRegularFile == true else { throw PlanImportError(message: "请选择 JSON 文件") }
+                guard (values.fileSize ?? 0) <= 1_048_576 else { throw PlanImportError(message: "文件不能超过 1 MB") }
+                let handle = try FileHandle(forReadingFrom: url)
+                defer { try? handle.close() }
+                let data = try handle.read(upToCount: 1_048_577) ?? Data()
+                let plans = try PlanImportDocument.decode(data, firstID: 3)
+                try FileManager.default.createDirectory(at: staged.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try data.write(to: staged, options: .atomic)
+                return plans
+            }
+        }
+        guard coordinatorError == nil, let result else {
+            throw PlanImportError(message: "无法读取文件，请确认文件已下载后重试")
+        }
+        do { return try result.get() }
+        catch let error as PlanImportError { throw error }
+        catch { throw PlanImportError(message: "无法读取或暂存文件，请确认文件已下载且存储空间充足后重试") }
+    }
+}

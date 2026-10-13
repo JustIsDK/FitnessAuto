@@ -305,6 +305,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FitnessAuto/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
@@ -339,6 +340,7 @@
 				CURRENT_PROJECT_VERSION = 20261010.5;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FitnessAuto/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
