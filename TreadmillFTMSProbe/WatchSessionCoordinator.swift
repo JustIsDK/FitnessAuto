@@ -51,6 +51,10 @@ final class WatchSessionCoordinator: NSObject, ObservableObject, WCSessionDelega
     }
     private func publish() {
         guard WCSession.isSupported(), session.activationState == .activated else { return }
+        guard session.isPaired, session.isWatchAppInstalled else {
+            if identifier != nil { status = "请先在 Apple Watch 安装 FitnessAuto" }
+            return
+        }
         do { try session.updateApplicationContext(desired) }
         catch { status = "手表同步失败：\(error.localizedDescription)" }
         if session.isReachable {
@@ -66,7 +70,24 @@ final class WatchSessionCoordinator: NSObject, ObservableObject, WCSessionDelega
         }
     }
     func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
-        DispatchQueue.main.async { replyHandler(self.desired) }
+        DispatchQueue.main.async {
+            if self.identifier == nil { self.status = "等待运动开始" }
+            replyHandler(self.desired)
+        }
+    }
+    func sessionWatchStateDidChange(_ session: WCSession) {
+        DispatchQueue.main.async {
+            if self.identifier == nil { self.status = "等待运动开始" }
+            self.publish()
+            if let id = self.identifier { self.launch(id: id, running: self.desired["running"] as? Bool ?? false) }
+        }
+    }
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        guard session.isReachable else { return }
+        DispatchQueue.main.async {
+            if self.identifier == nil { self.status = "等待运动开始" }
+            self.publish()
+        }
     }
     func sessionDidBecomeInactive(_ session: WCSession) {}
     func sessionDidDeactivate(_ session: WCSession) { session.activate() }

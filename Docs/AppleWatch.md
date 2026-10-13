@@ -39,3 +39,13 @@ iPhone 被电话打断、锁屏或蓝牙断开时，手表依靠 `HKWorkoutSessi
 6. 在苹果健康「心率」检查 FitnessAuto 来源的样本；保存 iPhone 记录后确认运动列表只新增一条运动。
 
 构建成功只验证代码与签名，不代表已验证自动唤起、传感器采集、后台持续运行和健康同步。
+
+## 模拟器检查（2026-10-12）
+
+- 环境：Xcode 27，iOS 27 iPhone 18 Pro Max 与 watchOS 27 Apple Watch Series 12（46mm），模拟器配对显示 connected。
+- 使用 iPhone 模拟器 destination 构建主 scheme，让 Xcode 为嵌入的 Watch 目标选择 watchsimulator SDK；不要全局传 `-sdk iphonesimulator`，否则 Watch 目标也会错误地使用 iPhone SDK。
+- 两端构建、安装、启动通过，已检查实际页面截图。
+- WatchConnectivity 请求/响应日志显示手表请求当前状态，手机成功回复，手表成功反序列化响应。
+- 修复首次安装时手机暂时认为 Watch APP 未安装，连接恢复后仍显示旧错误的问题；手表收到空闲状态后显示已连接与授权/等待提示。
+- `verify_plans.py`、`verify_workout_data.py`、`verify_scale.py`、`verify_trends.py` 四组现有检查通过；这些不覆盖 Watch 运动生命周期。
+- 未完成：健康授权交互、运动自动唤起、采集启动与结束、心率写入及后台持续运行。模拟器也不能验证真实蓝牙设备、S6/watchOS 26.6 开发连接及真实传感器；仍需按上面的真机验收步骤检查。

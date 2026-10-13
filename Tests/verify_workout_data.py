@@ -8,6 +8,33 @@ bluetooth = (root / "TreadmillFTMSProbe/TreadmillBluetooth.swift").read_text()
 models = bluetooth[bluetooth.index("struct WorkoutStep:"):bluetooth.index("final class TreadmillBluetooth:")]
 data = (root / "TreadmillFTMSProbe/WorkoutData.swift").read_text()
 importer = (root / "TreadmillFTMSProbe/PlanImport.swift").read_text()
+start_gate = bluetooth[bluetooth.index("    var canStartWorkout:"):bluetooth.index("    var canStopTreadmill:")]
+start_checks = r'''
+struct StartProbe {
+    var appIsActive = true, connected = true, vendorAuthorized = true, vendorSubscribed = true
+    var readyForMotion = false, workoutActive = false
+    var workoutMotion: WorkoutMotionTransition? = nil
+    var lastVendorReportUptime: Double? = ProcessInfo.processInfo.systemUptime
+    var vendorMachineState: UInt8? = 0x0A
+    START_GATE
+}
+var gate = StartProbe()
+assert(gate.canStartWorkout) // A stopped treadmill needs no separate preparation toggle.
+gate.vendorMachineState = 3; assert(gate.canStartWorkout)
+gate.vendorMachineState = 2; assert(!gate.canStartWorkout) // No second start during countdown.
+gate.vendorMachineState = nil; gate.lastVendorReportUptime = nil
+assert(gate.canStartWorkout) // Connected idle devices may only return short ACKs.
+gate.vendorMachineState = 0x0A
+gate.lastVendorReportUptime = ProcessInfo.processInfo.systemUptime - 4; assert(gate.canStartWorkout)
+gate.vendorMachineState = 2; assert(gate.canStartWorkout) // Old countdown must not block a new start.
+gate.vendorMachineState = 0x0A
+gate.lastVendorReportUptime = ProcessInfo.processInfo.systemUptime
+gate.connected = false; assert(!gate.canStartWorkout); gate.connected = true
+gate.vendorAuthorized = false; assert(!gate.canStartWorkout); gate.vendorAuthorized = true
+gate.vendorSubscribed = false; assert(!gate.canStartWorkout); gate.vendorSubscribed = true
+gate.appIsActive = false; assert(!gate.canStartWorkout); gate.appIsActive = true
+gate.workoutMotion = WorkoutMotionTransition(kind: .start, deadline: 15); assert(!gate.canStartWorkout)
+'''.replace("START_GATE", start_gate)
 checks = r'''
 func u16(_ n: Int) -> [UInt8] { [UInt8(n & 255), UInt8((n >> 8) & 255)] }
 // All optional fields before distance, energy and elapsed exercise offsets.
@@ -128,5 +155,5 @@ print("Passed: FTMS, accounting, plan validation, motion confirmation, overlap r
 '''
 with tempfile.TemporaryDirectory() as directory:
     path = pathlib.Path(directory) / "main.swift"
-    path.write_text("import Foundation\n" + models + data + importer + checks)
+    path.write_text("import Foundation\n" + models + data + importer + start_checks + checks)
     subprocess.run(["swift", str(path), str(root / "Examples/plan-import.json")], check=True)

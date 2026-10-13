@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="24506" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="launch-controller">
+    <device id="retina6_12" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="24504"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="Named colors" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <scene sceneID="launch-scene">
+            <objects>
+                <viewController id="launch-controller" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="launch-root">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" alignment="center" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="launch-stack">
+                                <rect key="frame" x="24" y="223" width="345" height="393"/>
+                                <subviews>
+                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="LaunchIllustration" translatesAutoresizingMaskIntoConstraints="NO" id="launch-art">
+                                        <rect key="frame" x="0" y="0" width="345" height="302"/>
+                                        <accessibility key="accessibilityConfiguration" label="小人在跑步机上运动"/>
+                                        <constraints>
+                                            <constraint firstAttribute="width" secondItem="launch-art" secondAttribute="height" multiplier="8:7" id="art-ratio"/>
+                                        </constraints>
+                                    </imageView>
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="FitnessAuto" textAlignment="center" adjustsFontSizeToFit="YES" minimumScaleFactor="0.7" translatesAutoresizingMaskIntoConstraints="NO" id="launch-title">
+                                        <rect key="frame" x="84" y="318" width="177" height="36"/>
+                                        <fontDescription key="fontDescription" type="system" weight="bold" pointSize="30"/>
+                                        <color key="textColor" name="LaunchInk"/>
+                                    </label>
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="每一步，都有节奏。" textAlignment="center" adjustsFontSizeToFit="YES" minimumScaleFactor="0.7" translatesAutoresizingMaskIntoConstraints="NO" id="launch-caption">
+                                        <rect key="frame" x="100" y="370" width="145" height="23"/>
+                                        <fontDescription key="fontDescription" type="system" pointSize="16"/>
+                                        <color key="textColor" name="LaunchInk"/>
+                                    </label>
+                                </subviews>
+                                <constraints>
+                                    <constraint firstItem="launch-art" firstAttribute="width" secondItem="launch-stack" secondAttribute="width" id="art-width"/>
+                                    <constraint firstItem="launch-title" firstAttribute="width" relation="lessThanOrEqual" secondItem="launch-stack" secondAttribute="width" id="title-width"/>
+                                    <constraint firstItem="launch-caption" firstAttribute="width" relation="lessThanOrEqual" secondItem="launch-stack" secondAttribute="width" id="caption-width"/>
+                                </constraints>
+                            </stackView>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="launch-safe"/>
+                        <color key="backgroundColor" name="LaunchBackground"/>
+                        <constraints>
+                            <constraint firstItem="launch-stack" firstAttribute="centerX" secondItem="launch-safe" secondAttribute="centerX" id="stack-center-x"/>
+                            <constraint firstItem="launch-stack" firstAttribute="centerY" secondItem="launch-safe" secondAttribute="centerY" constant="-20" id="stack-center-y"/>
+                            <constraint firstItem="launch-stack" firstAttribute="width" relation="lessThanOrEqual" constant="360" id="stack-max-width"/>
+                            <constraint firstItem="launch-stack" firstAttribute="width" relation="lessThanOrEqual" secondItem="launch-safe" secondAttribute="height" multiplier="8:7" constant="-190" id="stack-landscape-width"/>
+                            <constraint firstItem="launch-stack" firstAttribute="width" secondItem="launch-safe" secondAttribute="width" constant="-48" priority="750" id="stack-width"/>
+                            <constraint firstItem="launch-stack" firstAttribute="top" relation="greaterThanOrEqual" secondItem="launch-safe" secondAttribute="top" constant="16" id="stack-top"/>
+                            <constraint firstItem="launch-safe" firstAttribute="bottom" relation="greaterThanOrEqual" secondItem="launch-stack" secondAttribute="bottom" constant="16" id="stack-bottom"/>
+                        </constraints>
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="launch-responder" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="LaunchIllustration" width="640" height="560"/>
+        <namedColor name="LaunchBackground"><color red="0.969" green="0.976" blue="0.957" alpha="1" colorSpace="custom" customColorSpace="sRGB"/></namedColor>
+        <namedColor name="LaunchInk"><color red="0.086" green="0.247" blue="0.212" alpha="1" colorSpace="custom" customColorSpace="sRGB"/></namedColor>
+    </resources>
+</document>

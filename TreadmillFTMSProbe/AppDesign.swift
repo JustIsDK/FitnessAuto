@@ -25,19 +25,6 @@ extension View {
     func appListStyle() -> some View { modifier(AppListStyle()) }
 }
 
-struct PageIntro: View {
-    let eyebrow: String
-    let title: String
-    let subtitle: String
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(eyebrow).font(.caption.weight(.semibold)).tracking(1.5).foregroundStyle(AppDesign.accent)
-            Text(title).font(.largeTitle.weight(.bold)).tracking(-0.8)
-            Text(subtitle).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }.padding(.vertical, 8)
-    }
-}
-
 struct AppSectionTitle: View {
     let title: String
     let icon: String

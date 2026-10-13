@@ -3,66 +3,44 @@ import UIKit
 
 struct ContentView: View {
     @EnvironmentObject private var bluetooth: TreadmillBluetooth
-    @StateObject private var watch = WatchSessionCoordinator.shared
     @EnvironmentObject private var library: PlanLibrary
     @Environment(\.scenePhase) private var scenePhase
-    @State private var selectedPlanID = 1
-    @State private var workoutConfirmed = false
+    @AppStorage("fitnessauto.training.selectedPlanID") private var selectedPlanID = 1
     @State private var showingStagePicker = false
+    @State private var showingTreadmillConnection = false
     private var selectedPlan: WorkoutPlan { library.plans.first { $0.id == selectedPlanID } ?? WorkoutPlan.presets[0] }
     private var displayPlan: WorkoutPlan { bluetooth.currentPlan ?? selectedPlan }
+    private var availablePlanIDs: [Int] { library.plans.map(\.id) }
+
+    private func validateSelectedPlan(_ ids: [Int]) {
+        if !ids.contains(selectedPlanID) { selectedPlanID = ids.first ?? 1 }
+    }
 
     var body: some View {
         TabView {
             NavigationStack {
             List {
                 Section {
-                    PageIntro(eyebrow: "FITNESSAUTO", title: "每一步，都有节奏。", subtitle: "连接跑步机，让计划带着你向前。")
-                }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
-                Section {
                     VStack(alignment: .leading, spacing: 18) {
                         HStack {
                             Label("跑步机", systemImage: "figure.run").font(.headline)
                             Spacer()
-                            ConnectionBadge(title: bluetooth.connected ? "已连接" : "等待连接", connected: bluetooth.connected)
+                            Button {
+                                showingTreadmillConnection = true
+                            } label: {
+                                ConnectionBadge(title: bluetooth.connected ? "已连接" : bluetooth.isConnecting ? "连接中" : bluetooth.isScanning ? "扫描中" : "等待连接", connected: bluetooth.connected)
+                                    .frame(minHeight: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("treadmillConnection")
+                            .accessibilityHint("打开跑步机设备列表")
                         }
                         HStack(spacing: 12) {
                             MetricTile(title: "当前速度", value: bluetooth.liveSpeed.map { String(format: "%.1f", $0) } ?? "—", unit: "km/h", icon: "speedometer")
                             MetricTile(title: "当前坡度", value: bluetooth.liveIncline.map(String.init) ?? "—", unit: "%", icon: "mountain.2")
                         }
-                        Text(bluetooth.connectionText).font(.caption).foregroundStyle(.secondary)
-                        Label(watch.status, systemImage: "applewatch").font(.caption).foregroundStyle(.secondary)
-                        if !bluetooth.connected {
-                            Button {
-                                bluetooth.scan()
-                            } label: {
-                                Label("扫描并连接跑步机", systemImage: "antenna.radiowaves.left.and.right")
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(AppPrimaryButtonStyle())
-                            .disabled(!bluetooth.bluetoothReady)
-                            if !bluetooth.devices.isEmpty {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("选择设备").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                                    ForEach(bluetooth.devices) { device in
-                                        Button {
-                                            bluetooth.connect(device.id)
-                                        } label: {
-                                            HStack {
-                                                Image(systemName: "figure.run").foregroundStyle(AppDesign.accent)
-                                                Text(device.name)
-                                                Spacer()
-                                                Text("\(device.rssi) dBm").font(.caption).foregroundStyle(.secondary)
-                                            }
-                                        }
-                                    }
-                                }
-                                .padding(.top, 2)
-                            }
-                        }
                     }.padding(.vertical, 8)
-                }
-                Section {
                     Picker("选择计划", selection: $selectedPlanID) {
                         ForEach(library.plans) { Text($0.title).tag($0.id) }
                     }.disabled(bluetooth.workoutBusy || bluetooth.workoutPaused)
@@ -90,9 +68,7 @@ struct ContentView: View {
                         }
                     }
                     Text(bluetooth.workoutMessage).font(.subheadline).foregroundStyle(.secondary)
-                    Toggle("已准备好开始训练", isOn: $workoutConfirmed)
-                        .disabled(bluetooth.workoutBusy)
-                    Text("请先查看计划并检查安全夹，开始训练会自动启动跑步机。")
+                    Text("检查安全夹后点击开始训练，跑步机会自动启动；倒计时结束并确认运行后开始计划计时。")
                         .font(.caption).foregroundStyle(.secondary)
                     if bluetooth.workoutStarting {
                         ProgressView("正在启动跑步机…")
@@ -109,13 +85,15 @@ struct ContentView: View {
                     } else if bluetooth.workoutPaused {
                         Button("继续训练", systemImage: "play.fill") { bluetooth.resumeWorkout() }
                             .buttonStyle(AppPrimaryButtonStyle())
-                            .disabled(!workoutConfirmed || !bluetooth.canStartWorkout)
+                            .disabled(!bluetooth.canStartWorkout)
                     } else {
                         Button("开始训练", systemImage: "play.fill") {
-                            bluetooth.readyForMotion = workoutConfirmed
                             bluetooth.startWorkout(selectedPlan)
                         }.buttonStyle(AppPrimaryButtonStyle())
-                            .disabled(!workoutConfirmed || !bluetooth.canStartWorkout)
+                            .disabled(!bluetooth.canStartWorkout)
+                    }
+                    if !bluetooth.workoutBusy, let reason = bluetooth.workoutStartBlockReason {
+                        Text(reason).font(.caption).foregroundStyle(.secondary)
                     }
                     if bluetooth.workoutActive || bluetooth.workoutPaused || bluetooth.workoutStarting {
                         Button("结束计划并停止跑步机", role: .destructive) { bluetooth.endWorkout() }
@@ -133,11 +111,14 @@ struct ContentView: View {
                             }.font(.caption).monospacedDigit()
                         }
                     }
-                } header: { AppSectionTitle(title: "训练计划", icon: "list.bullet.rectangle") }
+                }
             }
             .appListStyle()
             .navigationTitle("训练")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingTreadmillConnection) {
+                TreadmillConnectionView()
+            }
             .sheet(isPresented: $showingStagePicker) {
                 NavigationStack {
                     List {
@@ -173,18 +154,11 @@ struct ContentView: View {
                     }
                 }
             }
-            .onChange(of: library.plans.map(\.id)) { _, ids in
-                if !ids.contains(selectedPlanID) { selectedPlanID = 1 }
+            .onChange(of: availablePlanIDs, initial: true) { _, ids in
+                validateSelectedPlan(ids)
             }
-            .toolbar {
-            }
-            .onChange(of: workoutConfirmed) { _, confirmed in bluetooth.readyForMotion = confirmed }
             .onChange(of: scenePhase) { _, phase in
                 bluetooth.setAppActive(phase == .active, background: phase == .background)
-                if phase == .background { workoutConfirmed = false }
-            }
-            .onChange(of: bluetooth.connected) { _, connected in
-                if !connected { workoutConfirmed = false }
             }
             .onChange(of: bluetooth.workoutBusy) { _, busy in UIApplication.shared.isIdleTimerDisabled = busy }
             }
@@ -212,6 +186,58 @@ struct ContentView: View {
         }
     }
 
+}
+
+private struct TreadmillConnectionView: View {
+    @EnvironmentObject private var bluetooth: TreadmillBluetooth
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack(spacing: 12) {
+                        if bluetooth.isScanning || bluetooth.isConnecting { ProgressView() }
+                        Text(bluetooth.connectionText)
+                    }
+                    if bluetooth.connected {
+                        Button("断开连接", role: .destructive) { bluetooth.disconnect() }
+                    } else if !bluetooth.isConnecting {
+                        Button(bluetooth.isScanning ? "重新扫描" : "扫描跑步机") { bluetooth.scan() }
+                            .disabled(!bluetooth.bluetoothReady)
+                    }
+                }
+                if !bluetooth.connected && !bluetooth.devices.isEmpty {
+                    Section("选择跑步机") {
+                        ForEach(bluetooth.devices) { device in
+                            Button { bluetooth.connect(device.id) } label: {
+                                Label(device.name, systemImage: "figure.run")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .disabled(!bluetooth.bluetoothReady || bluetooth.isConnecting)
+                        }
+                    }
+                }
+            }
+            .appListStyle()
+            .navigationTitle("连接跑步机")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .onAppear {
+            if !bluetooth.connected && !bluetooth.isScanning && !bluetooth.isConnecting { bluetooth.scan() }
+        }
+        .onDisappear { bluetooth.stopScanning() }
+        .onChange(of: bluetooth.connected) { _, connected in
+            if connected { dismiss() }
+        }
+    }
 }
 
 func clock(_ seconds: Int) -> String { String(format: "%02d:%02d", seconds / 60, seconds % 60) }

@@ -6,3 +6,6 @@ build/
 .build/
 *.ipa
 *.app/
+
+# 渲染出来的预览图
+Artwork/launch-preview.png

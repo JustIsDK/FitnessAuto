@@ -5,7 +5,7 @@ final class PlanLibrary: ObservableObject {
     @Published private(set) var custom: [WorkoutPlan] = []
     @Published var error: String?
     @Published var importMessage: String?
-    var plans: [WorkoutPlan] { WorkoutPlan.presets + custom }
+    var plans: [WorkoutPlan] { custom + WorkoutPlan.presets }
     private let url = URL.applicationSupportDirectory.appending(path: "FitnessAuto/plans.json")
 
     init() {
@@ -66,16 +66,6 @@ struct PlanLibraryView: View {
     @State private var importing = false
     var body: some View {
         List {
-            Section {
-                PageIntro(eyebrow: "YOUR ROUTINE", title: "找到自己的节奏。", subtitle: "选择、编辑或导入一套训练计划。")
-            }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
-            Section("内置计划 · 可复制后修改") {
-                ForEach(WorkoutPlan.presets) { plan in
-                    Button { draft = library.draft(from: plan) } label: {
-                        PlanSummaryRow(plan: plan, icon: "doc.on.doc")
-                    }
-                }
-            }
             Section("自定义计划") {
                 ForEach(library.custom) { plan in
                     Button { draft = plan } label: {
@@ -86,6 +76,13 @@ struct PlanLibraryView: View {
                     }
                 }
                 Button("新建计划", systemImage: "plus") { draft = library.draft() }
+            }
+            Section("内置计划 · 可复制后修改") {
+                ForEach(WorkoutPlan.presets) { plan in
+                    Button { draft = library.draft(from: plan) } label: {
+                        PlanSummaryRow(plan: plan, icon: "doc.on.doc")
+                    }
+                }
             }
             Section("导入计划") {
                 Button("导入计划", systemImage: "square.and.arrow.down") { importing = true }
@@ -116,39 +113,58 @@ struct PlanEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State var plan: WorkoutPlan
     @State private var error: String?
+    @State private var arrangingStages = false
+    private enum Field: Hashable {
+        case planTitle, stageTitle(Int), duration(Int)
+    }
+    @FocusState private var focusedField: Field?
     var body: some View {
         NavigationStack {
             List {
-                Section { TextField("计划名称", text: $plan.title) }
+                Section {
+                    TextField("计划名称", text: $plan.title)
+                        .focused($focusedField, equals: .planTitle)
+                }
                 ForEach($plan.steps) { $step in
                     Section {
                         TextField("阶段名称", text: $step.title)
+                            .focused($focusedField, equals: .stageTitle(step.id))
                         Stepper("时长 \(clock(step.duration))", value: $step.duration, in: 10...3600, step: 10)
                         HStack {
                             Text("时长（秒）")
                             TextField("秒", value: $step.duration, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing)
+                                .focused($focusedField, equals: .duration(step.id))
                         }
                         Stepper(String(format: "速度 %.1f km/h", step.speed), value: $step.speed, in: 1...18, step: 0.1)
                         Stepper("坡度 \(step.incline)%", value: $step.incline, in: 0...25)
                     } header: { Text("阶段 \((plan.steps.firstIndex { $0.id == step.id } ?? 0) + 1)") }
                 }
-                .onDelete { plan.steps.remove(atOffsets: $0) }
-                .onMove { plan.steps.move(fromOffsets: $0, toOffset: $1) }
                 Button("添加阶段", systemImage: "plus") {
                     plan.steps.append(WorkoutStep(id: (plan.steps.map(\.id).max() ?? -1) + 1, start: 0,
                                                   duration: 60, title: "新阶段", speed: 4, incline: 0))
                 }.disabled(plan.steps.count >= 100)
-                Text("总时长 \(clock(plan.duration)) · 点击编辑可调整阶段顺序或删除。开始前还会核对跑步机实际支持范围。")
+                Text("总时长 \(clock(plan.duration)) · 点击调整阶段可排序或删除。开始前还会核对跑步机实际支持范围。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             .appListStyle()
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("编辑计划")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
-                ToolbarItem(placement: .primaryAction) { EditButton() }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("调整阶段") {
+                        focusedField = nil
+                        arrangingStages = true
+                    }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { focusedField = nil }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
+                        focusedField = nil
                         var start = 0
                         for index in plan.steps.indices {
                             plan.steps[index].start = start
@@ -161,9 +177,42 @@ struct PlanEditor: View {
                     }
                 }
             }
+            .sheet(isPresented: $arrangingStages) {
+                PlanStageOrderView(steps: $plan.steps)
+            }
             .alert("无法保存", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
                 Button("知道了") { error = nil }
             } message: { Text(error ?? "") }
+        }
+    }
+}
+
+private struct PlanStageOrderView: View {
+    @Binding var steps: [WorkoutStep]
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("第\(index + 1)阶段 · \(step.title)").font(.headline)
+                        Text(String(format: "%@ · %.1f km/h · 坡度 %d%%", clock(step.duration), step.speed, step.incline))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .onDelete { steps.remove(atOffsets: $0) }
+                .onMove { steps.move(fromOffsets: $0, toOffset: $1) }
+            }
+            .environment(\.editMode, .constant(.active))
+            .appListStyle()
+            .navigationTitle("调整阶段")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
         }
     }
 }

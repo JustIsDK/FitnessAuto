@@ -225,9 +225,6 @@ struct WorkoutRecordsView: View {
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         List {
-            Section {
-                PageIntro(eyebrow: "YOUR PROGRESS", title: "每一次，都算数。", subtitle: "回顾运动记录，把进步留在苹果健康。")
-            }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
             Section("运动趋势") {
                 WorkoutTrendView(records: recorder.records)
             }
@@ -281,9 +278,6 @@ struct SettingsView: View {
     private let unavailable = "暂无可读取数据"
     var body: some View {
         List {
-            Section {
-                PageIntro(eyebrow: "SETTINGS", title: "把应用调成适合你的样子。", subtitle: "管理权限、个人资料和设备连接。")
-            }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
             Section("开关与权限") {
                 Button(recorder.healthAuthorized ? "苹果健康已授权" : "授权苹果健康") {
                     Task { await recorder.authorize() }

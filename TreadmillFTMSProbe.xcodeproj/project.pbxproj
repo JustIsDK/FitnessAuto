@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        B00000000000000000000009 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000019 /* LaunchScreen.storyboard */; };
 		A00000000000000000000011 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000021 /* App.swift */; };
 		A00000000000000000000012 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000022 /* ContentView.swift */; };
 		A00000000000000000000013 /* TreadmillBluetooth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000023 /* TreadmillBluetooth.swift */; };
@@ -51,6 +52,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+        B00000000000000000000019 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		A00000000000000000000020 /* TreadmillFTMSProbe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TreadmillFTMSProbe.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000021 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		A00000000000000000000022 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -118,6 +120,7 @@
 				A00000000000000000000022 /* ContentView.swift */,
 				A00000000000000000000023 /* TreadmillBluetooth.swift */,
 				A00000000000000000000024 /* Assets.xcassets */,
+                B00000000000000000000019 /* LaunchScreen.storyboard */,
 				A00000000000000000000025 /* PlanLibrary.swift */,
 				A00000000000000000000028 /* PlanImport.swift */,
 				B00000000000000000000013 /* WeightView.swift */,
@@ -235,6 +238,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000000000000000000014 /* Assets.xcassets in Resources */,
+                B00000000000000000000009 /* LaunchScreen.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -302,6 +306,7 @@
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取身高、出生日期、性别和最近体重，用于展示个人资料与计算 BMI；读取已有运动及体重、BMI 记录以检查重复。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将运动记录、距离和热量，以及你选择同步的体重与 BMI 写入苹果健康。";
@@ -335,6 +340,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = FitnessAuto;
+				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "用于连接跑步机控制训练，以及连接体脂秤读取测量数据。";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取身高、出生日期、性别和最近体重，用于展示个人资料与计算 BMI；读取已有运动及体重、BMI 记录以检查重复。";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "将运动记录、距离和热量，以及你选择同步的体重与 BMI 写入苹果健康。";

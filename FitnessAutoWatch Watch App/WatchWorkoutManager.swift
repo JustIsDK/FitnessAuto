@@ -62,7 +62,15 @@ final class WatchWorkoutManager: NSObject, ObservableObject, WCSessionDelegate, 
         apply(message)
     }
     private func apply(_ message: [String: Any]) {
-        guard message["active"] as? Bool == true else { stop(manual: false); return }
+        guard message["active"] as? Bool == true else {
+            if workout == nil, !authorizing {
+                let authorized = health.authorizationStatus(for: heartType) == .sharingAuthorized
+                    && health.authorizationStatus(for: .workoutType()) == .sharingAuthorized
+                status = authorized ? "已连接，等待 iPhone 训练" : "已连接，请先授权健康权限"
+            }
+            stop(manual: false)
+            return
+        }
         guard let id = message["id"] as? String, id != dismissedID else { return }
         if currentID == id { return }
         if workout != nil { stop(manual: false); return }

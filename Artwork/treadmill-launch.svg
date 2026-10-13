@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 560" width="640" height="560">
+  <!-- 启动页插图：跑步机 + 跑步的小人，几何简约风格。
+       画布 640x560（8:7，与 LaunchScreen.storyboard 中图像视图的比例一致），
+       背景保持透明，由 LaunchBackground 颜色提供底色，因此浅色/深色模式都可用。 -->
+
+  <!-- 背景圆盘：浅色模式下几乎与底色融合，深色模式下衬托深绿的机身 -->
+  <circle cx="320" cy="300" r="238" fill="#E3EDE6"/>
+
+  <!-- 图形部分放在一个统一的变换里：整体放大 1.13 并居中，便于调整大小和位置 -->
+  <g transform="translate(-25.8 -101.2) scale(1.13)">
+
+  <!-- 速度线：暗示跑带在动 -->
+  <g stroke="#48D7BD" stroke-width="11" stroke-linecap="round">
+    <line x1="104" y1="332" x2="156" y2="332"/>
+    <line x1="92"  y1="368" x2="146" y2="368"/>
+    <line x1="112" y1="404" x2="152" y2="404"/>
+  </g>
+
+  <!-- 跑台：机身用深绿色粗线，跑带用青绿色细线 -->
+  <g stroke="#20463D" fill="none" stroke-linecap="round">
+    <line x1="150" y1="458" x2="150" y2="486" stroke-width="18"/>
+    <line x1="430" y1="458" x2="430" y2="486" stroke-width="18"/>
+    <line x1="452" y1="442" x2="452" y2="280" stroke-width="22"/>
+  </g>
+  <rect x="110" y="430" width="360" height="32" rx="16" fill="#20463D"/>
+  <line x1="142" y1="446" x2="438" y2="446" stroke="#48D7BD" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- 仪表盘 -->
+  <rect x="383" y="222" width="138" height="62" rx="18" fill="#20463D"/>
+  <polyline points="403,254 421,254 431,233 441,261 453,237 463,254 501,254"
+            fill="none" stroke="#48D7BD" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- 小人：前腿落地、后腿抬起 -->
+  <g fill="none" stroke="#DD9366" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="228" cy="290" r="20" fill="#DD9366" stroke="none"/>
+    <line x1="232" y1="312" x2="248" y2="372" stroke-width="22"/>
+    <polyline points="238,330 266,348 292,328" stroke-width="15"/>
+    <polyline points="230,332 204,350 190,322" stroke-width="15"/>
+    <polyline points="250,372 260,398 252,428" stroke-width="18"/>
+    <line x1="244" y1="430" x2="270" y2="430" stroke-width="14"/>
+    <polyline points="247,372 224,391 194,386" stroke-width="18"/>
+    <line x1="194" y1="386" x2="178" y2="394" stroke-width="13"/>
+  </g>
+
+  </g>
+</svg>

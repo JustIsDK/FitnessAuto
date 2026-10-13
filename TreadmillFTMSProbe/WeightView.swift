@@ -11,9 +11,6 @@ struct WeightView: View {
     var body: some View {
         List {
             Section {
-                PageIntro(eyebrow: "BODY METRICS", title: "看见身体的变化。", subtitle: "每次测量，留下一份清晰的记录。")
-            }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 8, trailing: 4))
-            Section {
                 HStack {
                     Label("沃莱体脂秤", systemImage: "scalemass").font(.headline)
                     Spacer()

@@ -123,6 +123,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     @Published private(set) var logs: [CommunicationLog] = []
     @Published private(set) var bluetoothReady = false
     @Published private(set) var connected = false
+    @Published private(set) var isScanning = false
+    @Published private(set) var isConnecting = false
     @Published private(set) var autoConnectText = "请手动扫描并选择跑步机"
     @Published private(set) var controlGranted = false
     @Published private(set) var controlSubscribed = false
@@ -208,10 +210,18 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private var workoutConfirmationDeadline: TimeInterval?
 
     var canStartWorkout: Bool {
-        appIsActive && connected && vendorAuthorized && vendorSubscribed && readyForMotion &&
-            !workoutActive && workoutMotion == nil &&
-            lastVendorReportUptime.map { ProcessInfo.processInfo.systemUptime - $0 < 3 } == true &&
-            (vendorMachineState == 0x0A || vendorMachineState == 0x03)
+        workoutStartBlockReason == nil
+    }
+
+    var workoutStartBlockReason: String? {
+        guard appIsActive else { return "请回到 APP 前台后开始训练" }
+        guard connected else { return "请先连接跑步机" }
+        guard vendorSubscribed, vendorAuthorized else { return "正在准备跑步机控制连接，请稍候" }
+        guard !workoutActive, workoutMotion == nil else { return "正在执行训练或启停操作" }
+        let freshReport = lastVendorReportUptime.map { ProcessInfo.processInfo.systemUptime - $0 < 3 } == true
+        if freshReport, vendorMachineState == 0x02 { return "跑步机正在倒计时，请等待启动完成" }
+        // Idle responses may be short acknowledgements. Confirm motion after sending start.
+        return nil
     }
 
     var canStopTreadmill: Bool { connected && vendorAuthorized && vendorSubscribed && !workoutStopping }
@@ -223,6 +233,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
             workoutMessage = "请确认启动条件、设备状态和计划范围；暂停的计划请先继续或结束"
             return
         }
+        readyForMotion = true
         queuedVendorAction = nil
         workoutPlan = plan
         workoutAccumulated = 0
@@ -234,7 +245,9 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     }
 
     private func startOrContinueWorkout() {
-        if vendorRunning { beginWorkoutTiming() }
+        if vendorRunning, lastVendorReportUptime.map({ ProcessInfo.processInfo.systemUptime - $0 < 3 }) == true {
+            beginWorkoutTiming()
+        }
         else {
             workoutPaused = false
             requestMotion(.start)
@@ -319,6 +332,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         guard workoutPaused, canStartWorkout, let plan = workoutPlan,
               plan.validationError == nil, plan.steps.allSatisfy({ speedRange?.contains($0.speed) == true &&
                   inclineRange?.contains(Double($0.incline)) == true }) else { return }
+        readyForMotion = true
         startOrContinueWorkout()
     }
 
@@ -408,8 +422,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private var vendorWriteCharacteristic: CBCharacteristic?
     private var handshakeCharacteristic: CBCharacteristic?
     private var handshakeSubscribed = false
-    private var vendorSubscribed = false
-    private var vendorAuthorized = false
+    @Published private var vendorSubscribed = false
+    @Published private var vendorAuthorized = false
     private var vendorHandshakePending = false
     private var vendorTargetPending = false
     private var vendorStatusTimer: Timer?
@@ -480,6 +494,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
             readyForMotion = false
             retryWork?.cancel()
             central.stopScan()
+            isScanning = false
             let old = peripheral
             resetConnection()
             if let old { central.cancelPeripheralConnection(old) }
@@ -529,16 +544,25 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         devices = []
         discovered = [:]
         connectionText = "正在扫描 FTMS 设备…"
+        isScanning = true
         central.scanForPeripherals(withServices: [serviceUUID], options: nil)
         log("扫描服务 1826")
         let token = UUID()
         connectionToken = token
         DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
-            guard let self, self.connectionToken == token, self.peripheral == nil else { return }
+            guard let self, self.connectionToken == token, self.peripheral == nil, self.isScanning else { return }
             self.central.stopScan()
-            self.connectionText = "未发现跑步机"
+            self.isScanning = false
+            self.connectionText = self.devices.isEmpty ? "未发现跑步机，请唤醒设备后重试" : "扫描结束，请选择跑步机"
             self.scheduleReconnect()
         }
+    }
+
+    func stopScanning() {
+        guard isScanning else { return }
+        central.stopScan()
+        isScanning = false
+        connectionText = "扫描已停止"
     }
 
     func connect(_ id: UUID) {
@@ -546,6 +570,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         userDisconnected = false
         retryWork?.cancel()
         central.stopScan()
+        isScanning = false
+        isConnecting = true
         peripheral = device
         device.delegate = self
         connectionText = "正在连接 \(device.name ?? id.uuidString)…"
@@ -860,6 +886,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         vendorStatusTimer?.invalidate()
         vendorStatusTimer = nil
         connected = false
+        isScanning = false
+        isConnecting = false
         liveSpeed = nil
         liveIncline = nil
         controlGranted = false
@@ -966,6 +994,7 @@ extension TreadmillBluetooth: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         guard self.peripheral === peripheral, appIsActive, !userDisconnected else { central.cancelPeripheralConnection(peripheral); return }
         connected = true
+        isConnecting = false
         resumeConnectionRequested = false
         connectionText = "已连接 \(peripheral.name ?? peripheral.identifier.uuidString)"
         autoConnectText = "已连接跑步机"
