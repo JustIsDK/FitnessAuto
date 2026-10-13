@@ -413,7 +413,7 @@ private struct TrainingDesignPreview: View {
                 TrainingPlanControls(plan: plan, state: state,
                     elapsed: [.running, .paused, .starting].contains(state) ? elapsed : nil,
                     message: state == .paused ? "连接中断，计划已暂停；检查面板后继续" :
-                        state == .stopUnconfirmed ? "未确认停机，请立即使用实体停止键" :
+                        state == .stopUnconfirmed ? "停止指令发送失败，请重试或使用实体停止键" :
                         state == .starting ? "等待跑步机倒计时及运行确认" : nil,
                     primaryEnabled: true, canResume: true, canJumpNext: canJumpNext, canJumpStage: true,
                     onPrimary: { state = state == .idle ? .starting : .stopping },

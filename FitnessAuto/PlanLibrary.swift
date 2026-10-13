@@ -41,8 +41,9 @@ final class PlanLibrary: ObservableObject {
     func save(_ plan: WorkoutPlan) throws {
         if let message = plan.validationError { throw NSError(domain: "Plan", code: 1, userInfo: [NSLocalizedDescriptionKey: message]) }
         guard plan.id > 2 else { throw CocoaError(.validationMissingMandatoryProperty) }
-        var updated = custom.filter { $0.id != plan.id }
-        updated.append(plan)
+        var updated = custom
+        if let index = updated.firstIndex(where: { $0.id == plan.id }) { updated[index] = plan }
+        else { updated.append(plan) }
         try persist(updated)
     }
 

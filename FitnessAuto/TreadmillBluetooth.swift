@@ -215,7 +215,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
 
     var workoutStartBlockReason: String? {
         guard appIsActive else { return "请回到 APP 前台后开始训练" }
-        guard !stopNeedsRetry else { return "尚未确认停机，请先重试停止或使用实体停止键" }
+        guard !stopNeedsRetry else { return "停止指令尚未发送成功，请先重试停止或使用实体停止键" }
         guard connected else { return "请先连接跑步机" }
         guard vendorSubscribed, vendorAuthorized else { return "正在准备跑步机控制连接，请稍候" }
         guard !workoutActive, workoutMotion == nil else { return "正在执行训练或启停操作" }
@@ -283,8 +283,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
             } else {
                 self.workoutMotion = nil
                 self.stopNeedsRetry = true
-                self.recorder.finish(reason: "停止未确认；已保存观测到的运动数据")
-                self.workoutMessage = "\(self.stopReason)；未确认停机，请立即使用实体停止键"
+                self.recorder.finish(reason: "停止指令发送未确认；已保存观测到的运动数据")
+                self.workoutMessage = "\(self.stopReason)；停止指令发送超时，请重试或使用实体停止键"
                 self.log(self.workoutMessage)
             }
         }
@@ -352,7 +352,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         stopNeedsRetry = false
         if connected && vendorAuthorized && vendorSubscribed {
             requestMotion(.stop)
-            workoutMessage = "\(reason)；正在停止跑步机，等待状态确认"
+            workoutMessage = "\(reason)；正在发送停止指令"
         } else {
             stopNeedsRetry = true
             recorder.finish(reason: "连接不可用；已保存有效运动记录")
@@ -791,15 +791,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
                 workoutMotion = transition
                 if confirmed {
                     workoutMotion = nil
-                    if transition.kind == .start {
-                        log("设备运行状态已确认，开始计划计时")
-                        beginWorkoutTiming()
-                    } else {
-                        stopNeedsRetry = false
-                        recorder.finish()
-                        workoutMessage = "\(stopReason)；设备已确认停止"
-                        log(workoutMessage)
-                    }
+                    log("设备运行状态已确认，开始计划计时")
+                    beginWorkoutTiming()
                 }
             }
         } else if bytes[1] == 0x53 {
@@ -871,7 +864,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         if motionWasPending {
             workoutPaused = workoutPlan != nil
             stopNeedsRetry = true
-            workoutMessage = "启动或停机过程中连接中断，无法确认停机；请使用实体停止键"
+            workoutMessage = "启停指令发送过程中连接中断，请重试停止或使用实体停止键"
             saveCheckpoint()
         }
         recorder.finish(reason: "连接结束；已保存观测到的运动数据，重连后可重新记录")
@@ -1222,7 +1215,7 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
                 if failedMotion != nil {
                     workoutPaused = workoutPlan != nil
                     stopNeedsRetry = true
-                    workoutMessage = "启动或停止写入失败，无法确认停机；请使用实体停止键"
+                    workoutMessage = "启停指令写入失败，请重试停止或使用实体停止键"
                     saveCheckpoint()
                 }
                 pauseWorkout("设备写入失败，计划已暂停")
@@ -1235,9 +1228,21 @@ extension TreadmillBluetooth: CBPeripheralDelegate {
             }
             if let motionID = vendorMotionWriteID {
                 vendorMotionWriteID = nil
-                if workoutMotion?.id == motionID {
-                    workoutMotion?.writeConfirmed = true
-                    log("启停写入已确认；等待两次设备状态确认")
+                if var transition = workoutMotion, transition.id == motionID {
+                    if transition.confirmWrite() {
+                        // Stop completes on the matching ATT write, without a machine-state query.
+                        workoutMotion = nil
+                        stopNeedsRetry = false
+                        autoRecordingSuppressed = true
+                        // A pre-stop running report cannot bypass the next start command.
+                        lastVendorReportUptime = nil
+                        recorder.finish(reason: "停止指令已发送；运动记录已保存在本机")
+                        workoutMessage = "\(stopReason)；停止指令已发送"
+                        log(workoutMessage)
+                    } else {
+                        workoutMotion = transition
+                        log("启动写入已确认；等待两次运行状态确认")
+                    }
                 }
             }
             if vendorTargetPending {

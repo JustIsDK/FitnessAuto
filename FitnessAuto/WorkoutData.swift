@@ -40,9 +40,13 @@ struct WorkoutMotionTransition {
         self.kind = kind
         self.deadline = deadline
     }
+    mutating func confirmWrite() -> Bool {
+        writeConfirmed = true
+        return kind == .stop
+    }
     mutating func observe(machineState: UInt8) -> Bool {
-        guard writeConfirmed else { return false }
-        if kind == .start ? machineState == 0x03 : machineState == 0x0A { matchingReports += 1 }
+        guard kind == .start, writeConfirmed else { return false }
+        if machineState == 0x03 { matchingReports += 1 }
         else { matchingReports = 0 }
         return matchingReports >= 2
     }

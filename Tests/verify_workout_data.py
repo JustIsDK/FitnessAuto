@@ -9,6 +9,8 @@ models = bluetooth[bluetooth.index("struct WorkoutStep:"):bluetooth.index("final
 data = (root / "FitnessAuto/WorkoutData.swift").read_text()
 importer = (root / "FitnessAuto/PlanImport.swift").read_text()
 start_gate = bluetooth[bluetooth.index("    var canStartWorkout:"):bluetooth.index("    var canStopTreadmill:")]
+motion_callback_start = bluetooth.index("            if let motionID = vendorMotionWriteID {")
+motion_callback = bluetooth[motion_callback_start:bluetooth.index("            if vendorTargetPending {", motion_callback_start)]
 start_checks = r'''
 struct StartProbe {
     var appIsActive = true, connected = true, vendorAuthorized = true, vendorSubscribed = true
@@ -111,21 +113,50 @@ assert(MerachMotionCommand.stop == [2, 0x53, 3, 0x50, 3])
 for frame in [MerachMotionCommand.start, MerachMotionCommand.stop] {
     assert(frame[1..<(frame.count - 2)].reduce(UInt8(0), ^) == frame[frame.count - 2])
 }
+struct RecorderWriteProbe {
+    var finishes = 0
+    mutating func finish(reason: String) { finishes += 1 }
+}
+struct MotionWriteProbe {
+    var vendorMotionWriteID: UUID?
+    var workoutMotion: WorkoutMotionTransition?
+    var stopNeedsRetry = true
+    var autoRecordingSuppressed = false
+    var lastVendorReportUptime: Double? = 100
+    var recorder = RecorderWriteProbe()
+    var stopReason = "结束"
+    var workoutMessage = ""
+    mutating func acknowledge() {
+        MOTION_WRITE_CALLBACK
+    }
+    func log(_ message: String) {}
+}
+let stopWrite = WorkoutMotionTransition(kind: .stop, deadline: 15)
+var stopProbe = MotionWriteProbe(vendorMotionWriteID: stopWrite.id, workoutMotion: stopWrite)
+stopProbe.acknowledge() // No running or stopped report is provided.
+assert(stopProbe.workoutMotion == nil && !stopProbe.stopNeedsRetry)
+assert(stopProbe.recorder.finishes == 1 && stopProbe.autoRecordingSuppressed)
+assert(stopProbe.lastVendorReportUptime == nil && stopProbe.workoutMessage.contains("停止指令已发送"))
+let startWrite = WorkoutMotionTransition(kind: .start, deadline: 15)
+var startProbe = MotionWriteProbe(vendorMotionWriteID: startWrite.id, workoutMotion: startWrite)
+startProbe.acknowledge()
+assert(startProbe.workoutMotion?.writeConfirmed == true && startProbe.recorder.finishes == 0)
+var unrelatedProbe = MotionWriteProbe(vendorMotionWriteID: UUID(), workoutMotion: stopWrite)
+unrelatedProbe.acknowledge()
+assert(unrelatedProbe.workoutMotion?.id == stopWrite.id && unrelatedProbe.recorder.finishes == 0)
 var starting = WorkoutMotionTransition(kind: .start, deadline: 15)
 assert(!starting.observe(machineState: 3)) // Before write confirmation.
-starting.writeConfirmed = true
+assert(!starting.confirmWrite()) // Starting still requires running status.
 assert(!starting.observe(machineState: 2)) // Countdown doesn't start timing.
 assert(!starting.observe(machineState: 3))
 assert(starting.observe(machineState: 3))
 assert(!starting.timedOut(at: 14.99) && starting.timedOut(at: 15))
 var stopping = WorkoutMotionTransition(kind: .stop, deadline: 15)
-stopping.writeConfirmed = true
-assert(!stopping.observe(machineState: 2)) // Countdown isn't stopped.
+assert(!stopping.observe(machineState: 0x0A)) // A state report cannot replace a successful write.
+assert(stopping.confirmWrite()) // Stop finishes immediately on write acknowledgement, without any status report.
+assert(stopping.writeConfirmed)
 assert(!stopping.observe(machineState: 3))
-assert(!stopping.observe(machineState: 0x0A))
-assert(!stopping.observe(machineState: 3)) // Intervening motion resets confirmation.
-assert(!stopping.observe(machineState: 0x0A))
-assert(stopping.observe(machineState: 0x0A))
+assert(!stopping.observe(machineState: 0x0A)) // Polling never completes a stop transition.
 assert(starting.id != stopping.id)
 let segment = WorkoutRecord(title: "duplicates", running: false,
     intervals: [RecordedInterval(start: start, end: start.addingTimeInterval(60), duration: 60),
@@ -161,6 +192,8 @@ do { _ = try PlanImportDocument.decode(Data(repeating: 32, count: 1_048_577), fi
 print("Passed: FTMS, accounting, plan validation, motion confirmation, overlap review and batch JSON import.")
 
 '''
+checks = checks.replace("MOTION_WRITE_CALLBACK", motion_callback)
+
 with tempfile.TemporaryDirectory() as directory:
     path = pathlib.Path(directory) / "main.swift"
     path.write_text("import Foundation\n" + models + data + importer + start_checks + checks)

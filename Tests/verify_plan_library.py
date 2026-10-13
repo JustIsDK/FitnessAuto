@@ -66,6 +66,18 @@ checks = r'''
         restored.receiveImport(first); try await wait(restored)
         assert(restored.confirmImport(restored.pendingImports[0].id))
         assert(restored.custom.count == 5 && Set(restored.custom.map(\.id)).count == 5)
+        let originalOrder = restored.custom.map(\.id)
+        for index in [0, 2, restored.custom.count - 1] {
+            var edited = restored.custom[index]
+            edited.title += " edited"
+            edited.steps[0].speed = 1.5
+            try restored.save(edited)
+            assert(restored.custom.map(\.id) == originalOrder)
+            assert(restored.custom[index].title == edited.title && restored.custom[index].steps[0].speed == 1.5)
+        }
+        let orderAfterReload = PlanLibrary(directory: directory)
+        assert(orderAfterReload.custom.map(\.id) == originalOrder)
+        assert(orderAfterReload.custom.map(\.title) == restored.custom.map(\.title))
         let snapshot = restored.custom.map(\.id)
         let missing = root.appending(path: "missing.json")
         restored.receiveImport(missing); try await wait(restored)
