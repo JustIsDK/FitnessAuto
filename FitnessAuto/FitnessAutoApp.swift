@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct TreadmillFTMSProbeApp: App {
+struct FitnessAutoApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("fitnessauto.weight.health.auto") private var autoWeightHealth = true
     @StateObject private var bluetooth = TreadmillBluetooth()

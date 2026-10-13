@@ -3,7 +3,7 @@ import pathlib
 import subprocess
 import tempfile
 root = pathlib.Path(__file__).resolve().parents[1]
-source = (root / 'TreadmillFTMSProbe/ScaleProtocol.swift').read_text()
+source = (root / 'FitnessAuto/ScaleProtocol.swift').read_text()
 checks = r'''
 func packet(_ hex: String) -> Data { Data(hex.split(separator: " ").map { UInt8($0, radix: 16)! }) }
 let live = packet("AC 29 00 69 45 96 02 00 05 40 00 64 00 00 00 00 00 29 D5 0D")

@@ -53,12 +53,16 @@
 
 ## 安装与检查
 
-用 Xcode 打开 `TreadmillFTMSProbe.xcodeproj`，在 Signing & Capabilities 选择自己的团队，保留 HealthKit capability。连接 iPhone，选择手机并 Run。首次允许蓝牙权限；健康权限只在授权或写入时请求。退出官方 APP 和其他连接工具，避免占用设备。
+用 Xcode 打开 `FitnessAuto.xcodeproj`，在 Signing & Capabilities 选择自己的团队，保留 HealthKit capability。连接 iPhone，选择手机并 Run。首次允许蓝牙权限；健康权限只在授权或写入时请求。退出官方 APP 和其他连接工具，避免占用设备。
+
+工程、主 target、scheme 和源码目录统一为 FitnessAuto；主入口是 `FitnessAuto/FitnessAutoApp.swift`。升级沿用原 iPhone/Watch Bundle ID，以保留现有本机数据、健康数据来源和手表配对关系。
+
+运动记录支持左滑或长按删除，操作前会确认。已写入健康的记录会先删除本 APP 对应的运动、距离和热量，再删除本机记录；失败时保留记录供重试。授权后显示重复检查及各写入步骤，每个数据操作 20 秒无应答会退出等待并保留本机记录；授权弹窗由用户决定，不设此超时。
 
 ```sh
 python3 Tests/verify_plans.py
 python3 Tests/verify_workout_data.py
-xcodebuild -quiet -project TreadmillFTMSProbe.xcodeproj -scheme TreadmillFTMSProbe -destination 'generic/platform=iOS' -configuration Debug build
+xcodebuild -quiet -project FitnessAuto.xcodeproj -scheme FitnessAuto -destination 'generic/platform=iOS' -configuration Debug build
 ```
 
 测试覆盖内置计划 CSV 一致性和阶段边界、编辑数据合法性、JSON 编解码、标准蓝牙字段偏移/截断/不可用值、观测时长、通信缺口、计数器归零、时钟突变、启停状态确认、重复记录观测区间重叠和整批导入校验。蓝牙连接和 HealthKit 运行时行为需要真机复测。

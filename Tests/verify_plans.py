@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 
 root = pathlib.Path(__file__).resolve().parents[1]
-source = (root / "TreadmillFTMSProbe/TreadmillBluetooth.swift").read_text()
+source = (root / "FitnessAuto/TreadmillBluetooth.swift").read_text()
 model = source[source.index("struct WorkoutStep:"):source.index("final class TreadmillBluetooth:")]
 checks = r'''
 for plan in WorkoutPlan.presets {

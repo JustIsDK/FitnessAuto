@@ -3,7 +3,7 @@ import pathlib
 import subprocess
 import tempfile
 root = pathlib.Path(__file__).resolve().parents[1]
-source = (root / 'TreadmillFTMSProbe/TrendSeries.swift').read_text()
+source = (root / 'FitnessAuto/TrendSeries.swift').read_text()
 checks = r'''
 var cal = Calendar(identifier: .gregorian)
 cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!

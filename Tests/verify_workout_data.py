@@ -4,10 +4,10 @@ import subprocess
 import tempfile
 
 root = pathlib.Path(__file__).resolve().parents[1]
-bluetooth = (root / "TreadmillFTMSProbe/TreadmillBluetooth.swift").read_text()
+bluetooth = (root / "FitnessAuto/TreadmillBluetooth.swift").read_text()
 models = bluetooth[bluetooth.index("struct WorkoutStep:"):bluetooth.index("final class TreadmillBluetooth:")]
-data = (root / "TreadmillFTMSProbe/WorkoutData.swift").read_text()
-importer = (root / "TreadmillFTMSProbe/PlanImport.swift").read_text()
+data = (root / "FitnessAuto/WorkoutData.swift").read_text()
+importer = (root / "FitnessAuto/PlanImport.swift").read_text()
 start_gate = bluetooth[bluetooth.index("    var canStartWorkout:"):bluetooth.index("    var canStopTreadmill:")]
 start_checks = r'''
 struct StartProbe {

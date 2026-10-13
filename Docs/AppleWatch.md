@@ -2,7 +2,7 @@
 
 ## 安装和首次授权
 
-- iPhone target：`TreadmillFTMSProbe`；Watch target：`FitnessAutoWatch Watch App`，watchOS 10 或更高。
+- iPhone target：`FitnessAuto`；Watch target：`FitnessAutoWatch Watch App`，watchOS 10 或更高。
 - iPhone 构建会嵌入 Watch APP，但当前使用免费 Personal Team 开发签名，不能依赖手机 Watch APP 的「安装」。已从手机安装日志确认，watchOS 会以 `MIInstallerErrorDomain Code=111` 拒绝该安装来源，即使传输完成也会显示「无法安装」。
 - 当前签名方式：在 Xcode 选择 `FitnessAutoWatch Watch App` scheme，选择真实配对手表后运行，或通过已建立开发连接的 `xcrun devicectl device install app` 直接安装 Watch 包。付费团队分发需另按对应签名/分发流程验证。
 - 手表需单独开启「设置 → 隐私与安全性 → 开发者模式」，重启后再次确认开启；iPhone 开启开发者模式不等于手表已开启。

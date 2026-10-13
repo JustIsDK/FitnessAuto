@@ -1,6 +1,20 @@
 import SwiftUI
 import HealthKit
 
+// HealthKit may finish after our timeout; resume the caller exactly once.
+private final class HealthOperationResult<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Value, Error>?
+    init(_ continuation: CheckedContinuation<Value, Error>) { self.continuation = continuation }
+    func finish(_ result: Result<Value, Error>) {
+        lock.lock()
+        let pending = continuation
+        continuation = nil
+        lock.unlock()
+        pending?.resume(with: result)
+    }
+}
+
 struct HealthDuplicateReview: Identifiable {
     let record: WorkoutRecord
     let sources: String
@@ -19,6 +33,7 @@ final class WorkoutRecorder: ObservableObject {
     }
     @Published private(set) var status = "运动记录保存在本机，可选择写入苹果健康"
     @Published private(set) var saving = false
+    @Published private(set) var savingRecordID: UUID?
     @Published private(set) var healthAuthorized = false
     @Published private(set) var healthPartiallyAuthorized = false
     @Published var duplicateReview: HealthDuplicateReview?
@@ -91,10 +106,10 @@ final class WorkoutRecorder: ObservableObject {
         _ = persist()
     }
 
-    @discardableResult private func persist() -> Bool {
+    @discardableResult private func persist(records updated: [WorkoutRecord]? = nil) -> Bool {
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try JSONEncoder().encode(Archive(records: records, draft: accumulator?.record)).write(to: url, options: .atomic)
+            try JSONEncoder().encode(Archive(records: updated ?? records, draft: accumulator?.record)).write(to: url, options: .atomic)
             return true
         } catch { status = "本机保存失败，请保留 APP 并重试：\(error.localizedDescription)"; return false }
     }
@@ -121,6 +136,7 @@ final class WorkoutRecorder: ObservableObject {
         refreshHealthAuthorization()
         guard !saving, !healthAuthorized else { return }
         saving = true
+        status = "等待苹果健康授权…"
         defer { refreshHealthAuthorization(); saving = false }
         do {
             try await health.requestAuthorization(toShare: shareTypes, read: [HKObjectType.workoutType()])
@@ -131,15 +147,50 @@ final class WorkoutRecorder: ObservableObject {
         } catch { status = "健康授权失败：\(error.localizedDescription)" }
     }
 
-    private func overlappingWorkouts(start: Date, end: Date) async throws -> [HKWorkout] {
-        try await withCheckedThrowingContinuation { continuation in
-            let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
-            let query = HKSampleQuery(sampleType: HKObjectType.workoutType(), predicate: predicate,
-                                      limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
-                if let error { continuation.resume(throwing: error) }
-                else { continuation.resume(returning: samples as? [HKWorkout] ?? []) }
+    @MainActor private func healthOperation<Value>(_ message: String,
+        onTimeout: @escaping () -> Void = {},
+        start: @escaping (@escaping @Sendable (Result<Value, Error>) -> Void) -> Void) async throws -> Value {
+        status = message
+        return try await withCheckedThrowingContinuation { continuation in
+            let result = HealthOperationResult(continuation)
+            let timeout = DispatchWorkItem {
+                onTimeout()
+                result.finish(.failure(NSError(domain: "FitnessAuto.Health", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "\(message)超时，请稍后重试"])))
             }
-            health.execute(query)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: timeout)
+            start {
+                timeout.cancel()
+                result.finish($0)
+            }
+        }
+    }
+
+    @MainActor private func healthStep(_ message: String,
+        start: @escaping (@escaping @Sendable (Bool, Error?) -> Void) -> Void) async throws {
+        let _: Void = try await healthOperation(message) { finish in
+            start { success, error in
+                if let error { finish(.failure(error)) }
+                else if success { finish(.success(())) }
+                else { finish(.failure(NSError(domain: "FitnessAuto.Health", code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "\(message)未完成"]))) }
+            }
+        }
+    }
+
+    @MainActor private func overlappingWorkouts(start: Date, end: Date) async throws -> [HKWorkout] {
+        var query: HKSampleQuery?
+        return try await healthOperation("正在检查重复运动…", onTimeout: { [health] in
+            if let query { health.stop(query) }
+        }) { [health] finish in
+            let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+            let request = HKSampleQuery(sampleType: HKObjectType.workoutType(), predicate: predicate,
+                                      limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
+                if let error { finish(.failure(error)) }
+                else { finish(.success(samples as? [HKWorkout] ?? [])) }
+            }
+            query = request
+            health.execute(request)
         }
     }
 
@@ -147,7 +198,10 @@ final class WorkoutRecorder: ObservableObject {
         guard !saving, !record.healthSaved, let start = record.start, let end = record.end, end > start else { return }
         guard HKHealthStore.isHealthDataAvailable() else { status = "此设备不支持苹果健康"; return }
         saving = true
-        defer { refreshHealthAuthorization(); saving = false }
+        savingRecordID = record.id
+        status = "等待苹果健康授权…"
+        var pendingBuilder: HKWorkoutBuilder?
+        defer { refreshHealthAuthorization(); saving = false; savingRecordID = nil }
         do {
             try await health.requestAuthorization(toShare: shareTypes, read: [HKObjectType.workoutType()])
             var needed: [HKSampleType] = [HKObjectType.workoutType()]
@@ -184,21 +238,25 @@ final class WorkoutRecorder: ObservableObject {
                                   hardwareVersion: nil, firmwareVersion: nil, softwareVersion: nil,
                                   localIdentifier: nil, udiDeviceIdentifier: nil)
             let builder = HKWorkoutBuilder(healthStore: health, configuration: configuration, device: device)
-            try await builder.beginCollection(at: start)
-            try await builder.addMetadata([
+            pendingBuilder = builder
+            try await healthStep("正在准备运动记录…") { builder.beginCollection(withStart: start, completion: $0) }
+            try await healthStep("正在写入运动信息…") { completion in builder.addMetadata([
                 HKMetadataKeyIndoorWorkout: true,
                 HKMetadataKeySyncIdentifier: syncID,
                 HKMetadataKeySyncVersion: 1,
                 "FitnessAutoPlan": record.title,
                 "FitnessAutoDurationSource": "Confirmed running BLE observations",
                 "FitnessAutoMetricsSource": "FTMS 2ACD cumulative counter differences"
-            ])
+            ], completion: completion) }
             var events: [HKWorkoutEvent] = []
             for (previous, next) in zip(record.intervals, record.intervals.dropFirst()) where next.start > previous.end {
                 events.append(HKWorkoutEvent(type: .pause, dateInterval: DateInterval(start: previous.end, duration: 0), metadata: nil))
                 events.append(HKWorkoutEvent(type: .resume, dateInterval: DateInterval(start: next.start, duration: 0), metadata: nil))
             }
-            if !events.isEmpty { try await builder.addWorkoutEvents(events) }
+            if !events.isEmpty {
+                let workoutEvents = events
+                try await healthStep("正在写入暂停时段…") { builder.addWorkoutEvents(workoutEvents, completion: $0) }
+            }
             var samples: [HKQuantitySample] = []
             if let distance = record.distanceMeters, distance > 0 {
                 samples.append(HKQuantitySample(type: distanceType, quantity: HKQuantity(unit: .meter(), doubleValue: distance),
@@ -210,25 +268,70 @@ final class WorkoutRecorder: ObservableObject {
                                                 start: start, end: end, device: device,
                                                 metadata: [HKMetadataKeySyncIdentifier: "\(record.id).energy", HKMetadataKeySyncVersion: 1]))
             }
-            if !samples.isEmpty { try await builder.addSamples(samples) }
-            try await builder.endCollection(at: end)
-            _ = try await builder.finishWorkout()
+            if !samples.isEmpty {
+                let quantities = samples
+                try await healthStep("正在写入距离和热量…") { builder.add(quantities, completion: $0) }
+            }
+            try await healthStep("正在结束运动记录…") { builder.endCollection(withEnd: end, completion: $0) }
+            try await healthStep("正在保存到苹果健康…") { completion in
+                builder.finishWorkout { workout, error in completion(workout != nil, error) }
+            }
+            pendingBuilder = nil
             if let index = records.firstIndex(where: { $0.id == record.id }) { records[index].healthSaved = true }
             status = "已写入苹果健康：\(record.running ? "室内跑步" : "室内步行") · \(clock(Int(record.duration)))"
             _ = persist()
-        } catch { status = "写入失败，记录仍在本机，可重试：\(error.localizedDescription)" }
+        } catch {
+            pendingBuilder?.discardWorkout()
+            status = "写入未完成，记录仍在本机，可重试：\(error.localizedDescription)"
+        }
+    }
+
+    @MainActor func delete(_ record: WorkoutRecord) async {
+        guard !saving, records.contains(where: { $0.id == record.id }) else { return }
+        saving = true
+        savingRecordID = record.id
+        defer { saving = false; savingRecordID = nil }
+        do {
+            if record.healthSaved {
+                guard HKHealthStore.isHealthDataAvailable() else {
+                    status = "苹果健康暂不可用，记录已保留，请稍后重试删除"; return
+                }
+                // Deleting by sync ID also works when HealthKit read access is denied.
+                // HealthKit only permits deleting objects written by this app.
+                let targets: [(HKObjectType, String)] = [
+                    (distanceType, "\(record.id).distance"),
+                    (energyType, "\(record.id).energy"),
+                    (HKObjectType.workoutType(), "FitnessAuto.\(record.id.uuidString)")
+                ]
+                for (type, syncID) in targets {
+                    let predicate = HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeySyncIdentifier,
+                                                               operatorType: .equalTo, value: syncID)
+                    try await healthStep("正在删除对应的健康数据…") { [health] completion in
+                        health.deleteObjects(of: type, predicate: predicate) { success, _, error in completion(success, error) }
+                    }
+                }
+            }
+            let updated = records.filter { $0.id != record.id }
+            guard persist(records: updated) else { return }
+            records = updated
+            if duplicateReview?.id == record.id { duplicateReview = nil }
+            status = record.healthSaved ? "已删除运动记录及对应的苹果健康数据" : "已删除运动记录"
+        } catch { status = "删除未完成，记录已保留，可重试：\(error.localizedDescription)" }
     }
 }
 
 struct WorkoutRecordsView: View {
     @EnvironmentObject private var recorder: WorkoutRecorder
     @Environment(\.scenePhase) private var scenePhase
+    @State private var deletingRecord: WorkoutRecord?
     var body: some View {
         List {
             Section("运动趋势") {
                 WorkoutTrendView(records: recorder.records)
             }
             Section("本机运动记录") {
+                if recorder.saving { ProgressView(recorder.status) }
+                else { Text(recorder.status).font(.footnote).foregroundStyle(.secondary) }
                 if recorder.records.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("从第一次运动开始", systemImage: "figure.walk").font(.headline)
@@ -245,15 +348,31 @@ struct WorkoutRecordsView: View {
                             .font(.caption).foregroundStyle(.secondary)
                         Text(record.energyKcal.map { String(format: "消耗热量 %.0f kcal", $0) } ?? "消耗热量：设备未提供连续有效数据")
                             .font(.caption).foregroundStyle(.secondary)
-                        Button(record.healthSaved ? "已写入苹果健康" : "写入苹果健康") {
+                        Button(recorder.savingRecordID == record.id ? "处理中…" : record.healthSaved ? "已写入苹果健康" : "写入苹果健康") {
                             Task { await recorder.saveToHealth(record) }
                         }.disabled(record.healthSaved || recorder.saving)
                     }.padding(.vertical, 4)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button("删除", systemImage: "trash") { deletingRecord = record }
+                            .tint(.red).disabled(recorder.saving)
+                    }
+                    .contextMenu {
+                        Button("删除运动记录", systemImage: "trash", role: .destructive) { deletingRecord = record }
+                            .disabled(recorder.saving)
+                    }
                 }
             }
         }.appListStyle()
             .navigationTitle("运动记录")
             .navigationBarTitleDisplayMode(.inline)
+            .confirmationDialog("删除这条运动记录？", isPresented: Binding(
+                get: { deletingRecord != nil }, set: { if !$0 { deletingRecord = nil } }),
+                titleVisibility: .visible, presenting: deletingRecord) { record in
+                Button("删除运动记录", role: .destructive) { Task { await recorder.delete(record) } }
+                Button("取消", role: .cancel) { }
+            } message: { record in
+                Text(record.healthSaved ? "本机记录及本 APP 写入的对应苹果健康数据会一起删除。" : "删除后无法恢复。")
+            }
             .onAppear { recorder.refreshHealthAuthorization() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { recorder.refreshHealthAuthorization() }

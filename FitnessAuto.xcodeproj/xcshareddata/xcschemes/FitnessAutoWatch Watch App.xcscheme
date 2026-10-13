@@ -15,9 +15,22 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "CED80EB5307A6A6D00ED04AE"
+               BuildableName = "FitnessAutoWatch Watch App.app"
+               ReferencedContainer = "container:FitnessAuto.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "A00000000000000000000050"
-               BuildableName = "TreadmillFTMSProbe.app"
-               ReferencedContainer = "container:TreadmillFTMSProbe.xcodeproj">
+               BuildableName = "FitnessAuto.app"
+               ReferencedContainer = "container:FitnessAuto.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -44,9 +57,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "A00000000000000000000050"
-            BuildableName = "TreadmillFTMSProbe.app"
-            ReferencedContainer = "container:TreadmillFTMSProbe.xcodeproj">
+            BlueprintIdentifier = "CED80EB5307A6A6D00ED04AE"
+            BuildableName = "FitnessAutoWatch Watch App.app"
+            ReferencedContainer = "container:FitnessAuto.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -60,9 +73,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "A00000000000000000000050"
-            BuildableName = "TreadmillFTMSProbe.app"
-            ReferencedContainer = "container:TreadmillFTMSProbe.xcodeproj">
+            BlueprintIdentifier = "CED80EB5307A6A6D00ED04AE"
+            BuildableName = "FitnessAutoWatch Watch App.app"
+            ReferencedContainer = "container:FitnessAuto.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

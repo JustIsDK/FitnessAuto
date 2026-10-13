@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
         B00000000000000000000009 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000019 /* LaunchScreen.storyboard */; };
-		A00000000000000000000011 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000021 /* App.swift */; };
+		A00000000000000000000011 /* FitnessAutoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000021 /* FitnessAutoApp.swift */; };
 		A00000000000000000000012 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000022 /* ContentView.swift */; };
 		A00000000000000000000013 /* TreadmillBluetooth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000023 /* TreadmillBluetooth.swift */; };
 		A00000000000000000000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000024 /* Assets.xcassets */; };
@@ -53,8 +53,8 @@
 
 /* Begin PBXFileReference section */
         B00000000000000000000019 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
-		A00000000000000000000020 /* TreadmillFTMSProbe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TreadmillFTMSProbe.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A00000000000000000000021 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		A00000000000000000000020 /* FitnessAuto.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FitnessAuto.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000021 /* FitnessAutoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAutoApp.swift; sourceTree = "<group>"; };
 		A00000000000000000000022 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A00000000000000000000023 /* TreadmillBluetooth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreadmillBluetooth.swift; sourceTree = "<group>"; };
 		A00000000000000000000024 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -107,16 +107,16 @@
 		A00000000000000000000040 = {
 			isa = PBXGroup;
 			children = (
-				A00000000000000000000041 /* TreadmillFTMSProbe */,
+				A00000000000000000000041 /* FitnessAuto */,
 				CED80EB7307A6A6D00ED04AE /* FitnessAutoWatch Watch App */,
 				A00000000000000000000042 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		A00000000000000000000041 /* TreadmillFTMSProbe */ = {
+		A00000000000000000000041 /* FitnessAuto */ = {
 			isa = PBXGroup;
 			children = (
-				A00000000000000000000021 /* App.swift */,
+				A00000000000000000000021 /* FitnessAutoApp.swift */,
 				A00000000000000000000022 /* ContentView.swift */,
 				A00000000000000000000023 /* TreadmillBluetooth.swift */,
 				A00000000000000000000024 /* Assets.xcassets */,
@@ -134,13 +134,13 @@
 				A00000000000000000000027 /* WorkoutRecorder.swift */,
 				A00000000000000000000026 /* WorkoutData.swift */,
 			);
-			path = TreadmillFTMSProbe;
+			path = FitnessAuto;
 			sourceTree = "<group>";
 		};
 		A00000000000000000000042 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A00000000000000000000020 /* TreadmillFTMSProbe.app */,
+				A00000000000000000000020 /* FitnessAuto.app */,
 				CED80EB6307A6A6D00ED04AE /* FitnessAutoWatch Watch App.app */,
 			);
 			name = Products;
@@ -149,9 +149,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A00000000000000000000050 /* TreadmillFTMSProbe */ = {
+		A00000000000000000000050 /* FitnessAuto */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A00000000000000000000061 /* Build configuration list for PBXNativeTarget "TreadmillFTMSProbe" */;
+			buildConfigurationList = A00000000000000000000061 /* Build configuration list for PBXNativeTarget "FitnessAuto" */;
 			buildPhases = (
 				A00000000000000000000030 /* Sources */,
 				A00000000000000000000031 /* Frameworks */,
@@ -163,9 +163,9 @@
 			dependencies = (
 				CED80EBF307A6A6E00ED04AE /* PBXTargetDependency */,
 			);
-			name = TreadmillFTMSProbe;
-			productName = TreadmillFTMSProbe;
-			productReference = A00000000000000000000020 /* TreadmillFTMSProbe.app */;
+			name = FitnessAuto;
+			productName = FitnessAuto;
+			productReference = A00000000000000000000020 /* FitnessAuto.app */;
 			productType = "com.apple.product-type.application";
 		};
 		CED80EB5307A6A6D00ED04AE /* FitnessAutoWatch Watch App */ = {
@@ -213,7 +213,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A00000000000000000000062 /* Build configuration list for PBXProject "TreadmillFTMSProbe" */;
+			buildConfigurationList = A00000000000000000000062 /* Build configuration list for PBXProject "FitnessAuto" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -226,7 +226,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A00000000000000000000050 /* TreadmillFTMSProbe */,
+				A00000000000000000000050 /* FitnessAuto */,
 				CED80EB5307A6A6D00ED04AE /* FitnessAutoWatch Watch App */,
 			);
 		};
@@ -256,7 +256,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A00000000000000000000011 /* App.swift in Sources */,
+				A00000000000000000000011 /* FitnessAutoApp.swift in Sources */,
 				A00000000000000000000012 /* ContentView.swift in Sources */,
 				A00000000000000000000013 /* TreadmillBluetooth.swift in Sources */,
 				A00000000000000000000015 /* PlanLibrary.swift in Sources */,
@@ -299,7 +299,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
-				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
+				CODE_SIGN_ENTITLEMENTS = FitnessAuto/FitnessAuto.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20261010.5;
 				DEBUG_INFORMATION_FORMAT = dwarf;
@@ -334,7 +334,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_WEAK = YES;
-				CODE_SIGN_ENTITLEMENTS = TreadmillFTMSProbe/TreadmillFTMSProbe.entitlements;
+				CODE_SIGN_ENTITLEMENTS = FitnessAuto/FitnessAuto.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20261010.5;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
@@ -563,7 +563,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A00000000000000000000061 /* Build configuration list for PBXNativeTarget "TreadmillFTMSProbe" */ = {
+		A00000000000000000000061 /* Build configuration list for PBXNativeTarget "FitnessAuto" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A00000000000000000000071 /* Debug */,
@@ -572,7 +572,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		A00000000000000000000062 /* Build configuration list for PBXProject "TreadmillFTMSProbe" */ = {
+		A00000000000000000000062 /* Build configuration list for PBXProject "FitnessAuto" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A00000000000000000000073 /* Debug */,
