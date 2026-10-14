@@ -41,9 +41,11 @@ struct AppSectionTitle: View {
 struct ConnectionBadge: View {
     let title: String
     let connected: Bool
+    var connecting = false
     var body: some View {
         HStack(spacing: 8) {
-            Circle().fill(connected ? AppDesign.accent : Color.secondary).frame(width: 7, height: 7)
+            if connecting { ProgressView().controlSize(.mini) }
+            else { Circle().fill(connected ? AppDesign.accent : Color.secondary).frame(width: 7, height: 7) }
             Text(title).font(.caption.weight(.medium))
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
@@ -57,10 +59,14 @@ struct MetricTile: View {
     let value: String
     let unit: String
     let icon: String
+    @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .largeTitle) private var numberSize = 38
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label(title, systemImage: icon).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                if !typeSize.isAccessibilitySize { Image(systemName: icon).accessibilityHidden(true) }
+                Text(title).lineLimit(1).minimumScaleFactor(0.5)
+            }.font(.caption.weight(.medium)).foregroundStyle(.secondary)
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .firstTextBaseline, spacing: 5) { number; unitLabel }
                 VStack(alignment: .leading, spacing: 2) { number; unitLabel }

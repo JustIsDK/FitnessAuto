@@ -8,32 +8,37 @@ struct WeightView: View {
         guard let value = health.profileHeight, (90...240).contains(value) else { return nil }
         return value
     }
+    private var bmi: String {
+        guard let height, let reading = scale.reading,
+              let value = ScaleReading.bmi(weight: reading.kilograms, heightCm: height) else { return "—" }
+        return String(format: "%.1f", value)
+    }
     var body: some View {
         List {
             Section {
-                HStack {
-                    Label("沃莱体脂秤", systemImage: "scalemass").font(.headline)
-                    Spacer()
-                }.padding(.vertical, 4)
-                HStack(spacing: 10) {
-                    if scale.connectionState == .connecting { ProgressView() }
-                    else { Image(systemName: scale.active ? "checkmark.circle.fill" : "antenna.radiowaves.left.and.right") }
-                    Text(scale.connectionButtonTitle).font(.headline)
-                }.foregroundStyle(AppDesign.accent)
-                if scale.connectionState == .failed {
-                    Text(scale.status).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            Section("本次测量") {
-                MetricTile(title: "本次体重", value: scale.reading.map { String(format: "%.2f", $0.kilograms) } ?? "—", unit: "kg", icon: "scalemass")
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack {
+                        Label("沃莱体脂秤", systemImage: "scalemass").font(.headline)
+                        Spacer()
+                        Button { scale.stop(); scale.start() } label: {
+                            ConnectionBadge(title: scale.connectionState == .idle ? "等待连接" : scale.connectionButtonTitle,
+                                            connected: scale.active, connecting: scale.connectionState == .connecting)
+                                .frame(minHeight: 44).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(scale.active || scale.connectionState == .scanning || scale.connectionState == .connecting)
+                        .accessibilityIdentifier("scaleConnection")
+                        .accessibilityHint("体脂秤自动连接；连接失败时可点击重试")
+                        .accessibilityValue(scale.status)
+                    }
+                    HStack(alignment: .top, spacing: 12) {
+                        MetricTile(title: "本次体重", value: scale.reading.map { String(format: "%.2f", $0.kilograms) } ?? "—", unit: "kg", icon: "scalemass")
+                            .accessibilityIdentifier("weightCurrentValue")
+                        MetricTile(title: "BMI", value: bmi, unit: "", icon: "figure.stand")
+                            .accessibilityIdentifier("weightCurrentBMI")
+                    }
+                }.padding(.vertical, 8)
                     .listRowSeparator(.hidden)
-                Text(scale.reading?.stable == true ? "体重已稳定，已自动保存" : "等待体重稳定")
-                    .font(.caption).foregroundStyle(.secondary)
-                if let height, let reading = scale.reading, let bmi = ScaleReading.bmi(weight: reading.kilograms, heightCm: height) {
-                    LabeledContent("BMI", value: String(format: "%.1f", bmi))
-                } else { LabeledContent("BMI", value: "健康中有身高后计算") }
-                Text("测量稳定后会自动保存；健康同步可在设置中管理。APP 在前台时会自动寻找体脂秤。")
-                    .font(.footnote).foregroundStyle(.secondary)
             }
             Section("体重趋势") {
                 WeightTrendView(records: scale.records)
