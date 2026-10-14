@@ -22,12 +22,14 @@ struct FitnessAutoApp: App {
                 .task {
                     scale.setAppActive(scenePhase == .active)
                     await weightHealth.refreshProfile()
+                    await bluetooth.recorder.syncPendingRecords()
                 }
                 .onChange(of: scenePhase) { _, phase in
                     scale.setAppActive(phase == .active)
                     if phase == .active {
                         weightHealth.refreshAuthorization()
                         Task { await weightHealth.refreshProfile() }
+                        Task { await bluetooth.recorder.syncPendingRecords() }
                     }
                 }
                 .onChange(of: scale.reading) { _, reading in

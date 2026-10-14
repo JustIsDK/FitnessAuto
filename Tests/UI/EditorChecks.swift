@@ -1,6 +1,25 @@
 import XCTest
 
 final class EditorChecks: XCTestCase {
+    func testWorkoutAutomaticSyncSetting() {
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "com.example.TreadmillFTMSProbe")
+        app.launch()
+        app.tabBars.buttons["设置"].tap()
+        let toggle = app.switches["自动同步运动到苹果健康"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.value as? String, "1")
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertEqual(toggle.value as? String, "0")
+        app.terminate(); app.launch()
+        app.tabBars.buttons["设置"].tap()
+        XCTAssertEqual(toggle.value as? String, "0")
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertEqual(toggle.value as? String, "1")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "workout-auto-sync-settings"; screenshot.lifetime = .keepAlways; add(screenshot)
+        app.terminate()
+    }
     func testExternalFileImport() {
         continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: "com.example.TreadmillFTMSProbe")
@@ -44,6 +63,7 @@ final class EditorChecks: XCTestCase {
             XCTAssertFalse(app.buttons["暂停自动调节"].exists)
             XCTAssertFalse(app.buttons["跳转到指定阶段"].exists)
             capture(state)
+            XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS '个阶段'")).firstMatch.exists)
             if state == "idle" {
                 XCTAssertTrue(primary.label.contains("开始训练"))
                 primary.tap()
@@ -52,8 +72,13 @@ final class EditorChecks: XCTestCase {
                 XCTAssertTrue(primary.label.contains("正在停止"))
                 XCTAssertFalse(primary.isEnabled)
             } else if state == "running" {
+                XCTAssertTrue(app.staticTexts["trainingStageRemaining"].label.contains("00:01"))
+                XCTAssertEqual(app.staticTexts["trainingElapsed"].label, "00:19")
+                XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS '计划进度'")).firstMatch.exists)
                 XCTAssertEqual(app.staticTexts["trainingTarget"].label, "目标 5.0 km/h · 坡度 0%")
                 app.buttons["trainingNextStage"].tap()
+                XCTAssertTrue(app.staticTexts["trainingStageRemaining"].label.contains("00:40"))
+                XCTAssertEqual(app.staticTexts["trainingElapsed"].label, "00:19")
                 XCTAssertEqual(app.staticTexts["trainingTarget"].label, "目标 6.0 km/h · 坡度 2%")
                 app.buttons["查看完整阶段表"].tap()
                 let row = app.buttons["trainingStage-2"]
@@ -61,6 +86,8 @@ final class EditorChecks: XCTestCase {
                 row.tap()
                 app.swipeDown()
                 XCTAssertEqual(app.staticTexts["trainingTarget"].label, "目标 5.0 km/h · 坡度 6%")
+                XCTAssertTrue(app.staticTexts["trainingStageRemaining"].label.contains("01:00"))
+                XCTAssertEqual(app.staticTexts["trainingElapsed"].label, "00:19")
             } else if state == "stopping" {
                 XCTAssertFalse(primary.isEnabled)
             } else if state == "stopUnconfirmed" {

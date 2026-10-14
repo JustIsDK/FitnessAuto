@@ -147,6 +147,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private var lastVendorReportUptime: Double?
     private var autoRecordingSuppressed = false
     @Published private(set) var workoutElapsed = 0
+    @Published private(set) var workoutActiveSeconds = 0
+    private var workoutActiveAccumulated: TimeInterval = 0
     @Published private(set) var workoutMessage = "选择计划，预览后开始"
     @Published private(set) var liveSpeed: Double?
     @Published private(set) var liveIncline: Int?
@@ -162,7 +164,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     var currentStageIndex: Int? { currentPlan?.stepIndex(at: workoutElapsed) }
     var canJumpStage: Bool {
         workoutActive && workoutMotion == nil && appIsActive && readyForMotion && connected &&
-            vendorAuthorized && vendorSubscribed && vendorRunning && !vendorWritePending &&
+            vendorAuthorized && vendorSubscribed && vendorRunning && !vendorTargetPending &&
             workoutConfirmationDeadline == nil &&
             lastVendorStatus.map { Date().timeIntervalSince($0) < 3 } == true
     }
@@ -182,24 +184,30 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
             return
         }
         queuedVendorAction = nil
+        let now = ProcessInfo.processInfo.systemUptime
+        if let started = workoutStartedAt { workoutActiveAccumulated += now - started }
+        workoutActiveSeconds = Int(workoutActiveAccumulated)
         workoutAccumulated = TimeInterval(start)
         workoutElapsed = start
-        workoutStartedAt = ProcessInfo.processInfo.systemUptime
+        workoutStartedAt = now
         workoutStepIndex = nil
         workoutExpectedTarget = nil
         workoutConfirmationDeadline = nil
         saveCheckpoint()
         log("手动跳转至第\(index + 1)阶段：\(plan.steps[index].title)，从阶段开头计时")
+        // A routine status query may be in flight; apply the jump after its write acknowledgement.
+        if vendorWritePending { queuedVendorAction = { [weak self] in self?.tickWorkout() } }
         // Reuse normal range-checked writes and subsequent machine-state confirmation.
         tickWorkout()
     }
     private struct Checkpoint: Codable {
         let plan: WorkoutPlan
         let elapsed: Int
+        var activeSeconds: Int?
     }
     private func saveCheckpoint() {
         if let plan = workoutPlan, workoutElapsed < plan.duration,
-           let data = try? JSONEncoder().encode(Checkpoint(plan: plan, elapsed: workoutElapsed)) {
+           let data = try? JSONEncoder().encode(Checkpoint(plan: plan, elapsed: workoutElapsed, activeSeconds: workoutActiveSeconds)) {
             UserDefaults.standard.set(data, forKey: "workoutCheckpoint")
         } else { UserDefaults.standard.removeObject(forKey: "workoutCheckpoint") }
     }
@@ -239,6 +247,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         workoutPlan = plan
         workoutAccumulated = 0
         workoutElapsed = 0
+        workoutActiveAccumulated = 0
+        workoutActiveSeconds = 0
         workoutStepIndex = nil
         stopNeedsRetry = false
         saveCheckpoint()
@@ -315,9 +325,12 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
         }
         guard workoutActive else { return }
         if let started = workoutStartedAt {
-            workoutAccumulated += ProcessInfo.processInfo.systemUptime - started
+            let activeDuration = ProcessInfo.processInfo.systemUptime - started
+            workoutAccumulated += activeDuration
+            workoutActiveAccumulated += activeDuration
         }
         workoutElapsed = Int(workoutAccumulated)
+        workoutActiveSeconds = Int(workoutActiveAccumulated)
         workoutStartedAt = nil
         workoutActive = false
         workoutPaused = true
@@ -363,6 +376,7 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
     private func tickWorkout() {
         guard appIsActive, workoutActive, let plan = workoutPlan, let started = workoutStartedAt else { return }
         let now = ProcessInfo.processInfo.systemUptime
+        workoutActiveSeconds = Int(workoutActiveAccumulated + now - started)
         guard readyForMotion, connected, vendorRunning, vendorAuthorized,
               lastVendorStatus.map({ Date().timeIntervalSince($0) < 5 }) == true else {
             pauseWorkout("设备停止、连接或状态异常；计划已暂停，请检查面板")
@@ -471,6 +485,8 @@ final class TreadmillBluetooth: NSObject, ObservableObject {
             workoutPlan = checkpoint.plan
             workoutElapsed = checkpoint.elapsed
             workoutAccumulated = Double(checkpoint.elapsed)
+            workoutActiveSeconds = max(0, checkpoint.activeSeconds ?? 0)
+            workoutActiveAccumulated = Double(workoutActiveSeconds)
             workoutPaused = true
             workoutMessage = "已恢复上次进度；检查面板并重新确认后继续"
         }

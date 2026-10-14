@@ -31,7 +31,7 @@ final class WorkoutRecorder: ObservableObject {
     @Published var running = false {
         didSet { accumulator?.record.running = running }
     }
-    @Published private(set) var status = "运动记录保存在本机，可选择写入苹果健康"
+    @Published private(set) var status = "运动记录保存在本机，授权后自动同步苹果健康"
     @Published private(set) var saving = false
     @Published private(set) var savingRecordID: UUID?
     @Published private(set) var healthAuthorized = false
@@ -39,6 +39,7 @@ final class WorkoutRecorder: ObservableObject {
     @Published var duplicateReview: HealthDuplicateReview?
     private var accumulator: WorkoutAccumulator?
     private var lastPersistedSecond = -1
+    private var automaticSyncRunning = false
     private let health = HKHealthStore()
     private let url = URL.applicationSupportDirectory.appending(path: "FitnessAuto/workouts.json")
     private struct Archive: Codable {
@@ -96,14 +97,27 @@ final class WorkoutRecorder: ObservableObject {
         if energyKcal != record.energyKcal { energyKcal = record.energyKcal }
     }
 
-    func finish(reason: String = "运动记录已结束，可在记录页写入苹果健康") {
+    func finish(reason: String = "运动记录已结束，已保存到本机") {
         guard recording, let record = accumulator?.record else { return }
         if record.duration > 0, !records.contains(where: { $0.id == record.id }) { records.insert(record, at: 0) }
         recording = false
         waitingForMotion = false
         accumulator = nil
         status = reason
-        _ = persist()
+        if persist() { Task { @MainActor in await syncPendingRecords() } }
+    }
+
+    @MainActor func syncPendingRecords() async {
+        let preference = UserDefaults.standard.object(forKey: "fitnessauto.workout.health.auto") as? Bool ?? true
+        guard preference, !automaticSyncRunning, !saving, HKHealthStore.isHealthDataAvailable() else { return }
+        automaticSyncRunning = true
+        defer { automaticSyncRunning = false }
+        var attempted = Set<UUID>()
+        while let record = records.first(where: { !$0.healthSaved && !attempted.contains($0.id) && $0.id != duplicateReview?.id }) {
+            guard UserDefaults.standard.object(forKey: "fitnessauto.workout.health.auto") as? Bool ?? true else { break }
+            attempted.insert(record.id)
+            await saveToHealth(record, requestPermission: false, automatic: true)
+        }
     }
 
     @discardableResult private func persist(records updated: [WorkoutRecord]? = nil) -> Bool {
@@ -137,11 +151,14 @@ final class WorkoutRecorder: ObservableObject {
         guard !saving, !healthAuthorized else { return }
         saving = true
         status = "等待苹果健康授权…"
-        defer { refreshHealthAuthorization(); saving = false }
+        defer {
+            refreshHealthAuthorization(); saving = false
+            Task { await syncPendingRecords() }
+        }
         do {
             try await health.requestAuthorization(toShare: shareTypes, read: [HKObjectType.workoutType()])
             refreshHealthAuthorization()
-            status = healthAuthorized ? "已授权苹果健康；结束后可选择写入"
+            status = healthAuthorized ? "已授权苹果健康；运动记录将自动同步"
                 : healthPartiallyAuthorized ? "部分权限已授权，请在健康 APP 中开启其余写入权限"
                 : "未允许写入，请在健康 APP 中开启写入权限"
         } catch { status = "健康授权失败：\(error.localizedDescription)" }
@@ -194,21 +211,28 @@ final class WorkoutRecorder: ObservableObject {
         }
     }
 
-    @MainActor func saveToHealth(_ record: WorkoutRecord, allowDuplicate: Bool = false) async {
-        guard !saving, !record.healthSaved, let start = record.start, let end = record.end, end > start else { return }
+    @MainActor func saveToHealth(_ record: WorkoutRecord, allowDuplicate: Bool = false,
+                                 requestPermission: Bool = true, automatic: Bool = false) async {
+        guard !saving, let record = records.first(where: { $0.id == record.id }),
+              !record.healthSaved, let start = record.start, let end = record.end, end > start else { return }
         guard HKHealthStore.isHealthDataAvailable() else { status = "此设备不支持苹果健康"; return }
         saving = true
         savingRecordID = record.id
-        status = "等待苹果健康授权…"
         var pendingBuilder: HKWorkoutBuilder?
-        defer { refreshHealthAuthorization(); saving = false; savingRecordID = nil }
+        defer {
+            refreshHealthAuthorization(); saving = false; savingRecordID = nil
+            if !automatic { Task { await syncPendingRecords() } }
+        }
         do {
-            try await health.requestAuthorization(toShare: shareTypes, read: [HKObjectType.workoutType()])
+            if requestPermission {
+                status = "等待苹果健康授权…"
+                try await health.requestAuthorization(toShare: shareTypes, read: [HKObjectType.workoutType()])
+            }
             var needed: [HKSampleType] = [HKObjectType.workoutType()]
             if record.distanceMeters != nil { needed.append(distanceType) }
             if record.energyKcal != nil { needed.append(energyType) }
             guard needed.allSatisfy({ health.authorizationStatus(for: $0) == .sharingAuthorized }) else {
-                status = "未获得所需写入权限。请在健康 APP 的应用权限中允许运动、距离和热量后重试"
+                status = "记录已保存在本机；请在设置中授权苹果健康以自动同步运动、距离和热量"
                 return
             }
             let syncID = "FitnessAuto.\(record.id.uuidString)"
@@ -225,6 +249,10 @@ final class WorkoutRecorder: ObservableObject {
                     record.mayDuplicate(start: $0.startDate, end: $0.endDate)
                 }
                 if !candidates.isEmpty {
+                    if automatic {
+                        status = "可能已有同一次运动，已保留本机记录；可在运动记录中核对后重试同步"
+                        return
+                    }
                     let sources = Set(candidates.map { $0.sourceRevision.source.name }).sorted().joined(separator: "、")
                     duplicateReview = HealthDuplicateReview(record: record, sources: sources)
                     status = "发现时间重叠的运动记录，尚未写入；请确认是否重复"
@@ -290,7 +318,10 @@ final class WorkoutRecorder: ObservableObject {
         guard !saving, records.contains(where: { $0.id == record.id }) else { return }
         saving = true
         savingRecordID = record.id
-        defer { saving = false; savingRecordID = nil }
+        defer {
+            saving = false; savingRecordID = nil
+            Task { await syncPendingRecords() }
+        }
         do {
             if record.healthSaved {
                 guard HKHealthStore.isHealthDataAvailable() else {
@@ -348,7 +379,7 @@ struct WorkoutRecordsView: View {
                             .font(.caption).foregroundStyle(.secondary)
                         Text(record.energyKcal.map { String(format: "消耗热量 %.0f kcal", $0) } ?? "消耗热量：设备未提供连续有效数据")
                             .font(.caption).foregroundStyle(.secondary)
-                        Button(recorder.savingRecordID == record.id ? "处理中…" : record.healthSaved ? "已写入苹果健康" : "写入苹果健康") {
+                        Button(recorder.savingRecordID == record.id ? "同步中…" : record.healthSaved ? "已同步苹果健康" : "重试同步苹果健康") {
                             Task { await recorder.saveToHealth(record) }
                         }.disabled(record.healthSaved || recorder.saving)
                     }.padding(.vertical, 4)
@@ -365,9 +396,12 @@ struct WorkoutRecordsView: View {
         }.appListStyle()
             .navigationTitle("运动记录")
             .navigationBarTitleDisplayMode(.inline)
-            .onAppear { recorder.refreshHealthAuthorization() }
+            .task { recorder.refreshHealthAuthorization(); await recorder.syncPendingRecords() }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { recorder.refreshHealthAuthorization() }
+                if phase == .active {
+                    recorder.refreshHealthAuthorization()
+                    Task { await recorder.syncPendingRecords() }
+                }
             }
             .alert(deletingRecord != nil ? "删除这条运动记录？" : "可能是同一段运动", isPresented: Binding(
                 get: { deletingRecord != nil || recorder.duplicateReview != nil },
@@ -395,11 +429,13 @@ struct SettingsView: View {
     @EnvironmentObject private var recorder: WorkoutRecorder
     @EnvironmentObject private var weightHealth: WeightHealthStore
     @AppStorage("fitnessauto.weight.health.auto") private var autoWeightHealth = true
+    @AppStorage("fitnessauto.workout.health.auto") private var autoWorkoutHealth = true
     @Environment(\.scenePhase) private var scenePhase
     private let unavailable = "暂无可读取数据"
     var body: some View {
         List {
             Section("开关与权限") {
+                Toggle("自动同步运动到苹果健康", isOn: $autoWorkoutHealth)
                 Button(recorder.healthAuthorized ? "苹果健康已授权" : "授权苹果健康") {
                     Task { await recorder.authorize() }
                 }.disabled(recorder.saving || recorder.healthAuthorized)
@@ -453,6 +489,9 @@ struct SettingsView: View {
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
         .task { await weightHealth.refreshProfile() }
+        .onChange(of: autoWorkoutHealth) { _, enabled in
+            if enabled { Task { await recorder.syncPendingRecords() } }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await weightHealth.refreshProfile() } }
         }

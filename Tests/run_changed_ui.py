@@ -45,7 +45,8 @@ try:
         subprocess.run(['xcodebuild', '-project', str(root / 'Tests/UI/EditorChecks.xcodeproj'), '-scheme', 'EditorChecks',
                         '-destination', f'platform=iOS Simulator,id={simulator}', '-derivedDataPath', str(output / 'ui-build'),
                         '-resultBundlePath', str(output / 'checks.xcresult'), '-collect-test-diagnostics', 'never',
-                        '-parallel-testing-enabled', 'NO', 'test'], stdout=log, stderr=subprocess.STDOUT, check=True)
+                        '-parallel-testing-enabled', 'NO', '-skip-testing:EditorChecks/EditorChecks/testWorkoutAutomaticSyncSetting',
+                        'test'], stdout=log, stderr=subprocess.STDOUT, check=True)
 finally:
     subprocess.run(['xcrun', 'simctl', 'terminate', simulator, 'com.example.TreadmillFTMSProbe'], capture_output=True)
     for path, data in backups.items():

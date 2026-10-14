@@ -85,6 +85,7 @@ struct ContentView: View {
                 }.disabled(actionState.usesStopAction)
                 TrainingPlanControls(plan: displayPlan, state: actionState,
                     elapsed: bluetooth.currentPlan == nil ? nil : bluetooth.workoutElapsed,
+                    activeSeconds: bluetooth.workoutActiveSeconds,
                     message: trainingMessage,
                     primaryEnabled: actionState.usesStopAction ? bluetooth.canStopTreadmill : bluetooth.canStartWorkout,
                     canResume: bluetooth.canStartWorkout,
@@ -145,6 +146,7 @@ private struct TrainingPlanControls: View {
     let plan: WorkoutPlan
     let state: TrainingActionState
     let elapsed: Int?
+    let activeSeconds: Int
     let message: String?
     let primaryEnabled: Bool
     let canResume: Bool
@@ -176,28 +178,36 @@ private struct TrainingPlanControls: View {
             Button("继续训练", systemImage: "play.fill", action: onResume)
                 .disabled(!canResume).accessibilityIdentifier("trainingResume")
         }
-        HStack {
-            Label(plan.duration % 60 == 0 ? "\(plan.duration / 60) 分钟" : "\(plan.duration / 60) 分 \(plan.duration % 60) 秒", systemImage: "clock")
-            Spacer()
-            Text("\(plan.steps.count) 个阶段")
-        }.foregroundStyle(.secondary)
         if let elapsed {
+            if let index = currentIndex {
+                Label("本阶段剩余 \(clock(max(0, plan.steps[index].start + plan.steps[index].duration - elapsed)))", systemImage: "clock")
+                    .font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(AppDesign.accent)
+                    .accessibilityIdentifier("trainingStageRemaining")
+                    .transaction { $0.animation = nil }
+            }
             VStack(alignment: .leading, spacing: 14) {
                 ProgressView(value: Double(min(max(0, elapsed), plan.duration)), total: Double(plan.duration))
+                    .tint(AppDesign.accent).scaleEffect(x: 1, y: 2).frame(height: 8)
+                    .accessibilityIdentifier("trainingProgress")
                 HStack {
-                    Text("计划进度 \(clock(elapsed))")
                     Spacer()
-                    Text("剩余 \(clock(max(0, plan.duration - elapsed)))")
-                }.font(.caption).monospacedDigit()
+                    Text("已进行").font(.caption).foregroundStyle(.secondary)
+                    Text(clock(activeSeconds)).font(.title2.weight(.semibold))
+                        .accessibilityIdentifier("trainingElapsed")
+                }.monospacedDigit()
                 if let index = currentIndex {
                     Text(String(format: "目标 %.1f km/h · 坡度 %d%%", plan.steps[index].speed, plan.steps[index].incline))
                         .font(.headline).monospacedDigit().accessibilityIdentifier("trainingTarget")
                 }
-            }.padding(.vertical, 6)
+            }.padding(.vertical, 6).transaction { $0.animation = nil }
+        } else {
+            Label(plan.duration % 60 == 0 ? "\(plan.duration / 60) 分钟" : "\(plan.duration / 60) 分 \(plan.duration % 60) 秒", systemImage: "clock")
+                .foregroundStyle(.secondary)
         }
         if state == .running {
             Button("下一阶段", systemImage: "forward.end.fill", action: onNext)
                 .disabled(!canJumpNext).accessibilityIdentifier("trainingNextStage")
+                .transaction { $0.animation = nil }
         }
         DisclosureGroup("查看完整阶段表") {
             ForEach(Array(plan.steps.enumerated()), id: \.element.id) { index, step in
@@ -207,7 +217,7 @@ private struct TrainingPlanControls: View {
                         .accessibilityHint("从这个阶段开头继续训练，并立即调整速度和坡度")
                 } else { stageRow(step, index: index) }
             }
-        }
+        }.transaction { $0.animation = nil }
     }
     private func stageRow(_ step: WorkoutStep, index: Int) -> some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -412,6 +422,7 @@ private struct TrainingDesignPreview: View {
                     .disabled(state.usesStopAction)
                 TrainingPlanControls(plan: plan, state: state,
                     elapsed: [.running, .paused, .starting].contains(state) ? elapsed : nil,
+                    activeSeconds: 19,
                     message: state == .paused ? "连接中断，计划已暂停；检查面板后继续" :
                         state == .stopUnconfirmed ? "停止指令发送失败，请重试或使用实体停止键" :
                         state == .starting ? "等待跑步机倒计时及运行确认" : nil,
