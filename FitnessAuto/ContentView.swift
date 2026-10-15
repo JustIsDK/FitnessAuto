@@ -20,9 +20,12 @@ struct ContentView: View {
     }
     private var trainingMessage: String? {
         switch actionState {
-        case .starting: return "等待跑步机倒计时及运行确认"
+        case .starting: return nil
         case .paused, .stopUnconfirmed: return bluetooth.workoutMessage
-        case .idle: return bluetooth.workoutStartBlockReason
+        case .idle:
+            guard let reason = bluetooth.workoutStartBlockReason else { return nil }
+            if reason == "正在准备跑步机控制连接，请稍候" || reason == "跑步机正在倒计时，请等待启动完成" { return nil }
+            return reason
         case .running, .stopping: return nil
         }
     }
@@ -180,34 +183,36 @@ private struct TrainingPlanControls: View {
         }
         if let elapsed {
             if let index = currentIndex {
-                Label("本阶段剩余 \(clock(max(0, plan.steps[index].start + plan.steps[index].duration - elapsed)))", systemImage: "clock")
-                    .font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(AppDesign.accent)
-                    .accessibilityIdentifier("trainingStageRemaining")
-                    .transaction { $0.animation = nil }
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        remainingTime(index: index, elapsed: elapsed).fixedSize(horizontal: true, vertical: false)
+                        Spacer()
+                        activeTime
+                    }
+                    VStack(alignment: .leading, spacing: 8) { remainingTime(index: index, elapsed: elapsed); activeTime }
+                }
+                .transaction { $0.animation = nil }
             }
             VStack(alignment: .leading, spacing: 14) {
-                ProgressView(value: Double(min(max(0, elapsed), plan.duration)), total: Double(plan.duration))
-                    .tint(AppDesign.accent).scaleEffect(x: 1, y: 2).frame(height: 8)
-                    .accessibilityIdentifier("trainingProgress")
-                HStack {
-                    Spacer()
-                    Text("已进行").font(.caption).foregroundStyle(.secondary)
-                    Text(clock(activeSeconds)).font(.title2.weight(.semibold))
-                        .accessibilityIdentifier("trainingElapsed")
-                }.monospacedDigit()
+                StageProgressView(plan: plan, elapsed: elapsed)
                 if let index = currentIndex {
-                    Text(String(format: "目标 %.1f km/h · 坡度 %d%%", plan.steps[index].speed, plan.steps[index].incline))
-                        .font(.headline).monospacedDigit().accessibilityIdentifier("trainingTarget")
+                    let nextIndex = plan.steps.indices.contains(index + 1) ? index + 1 : nil
+                    if let nextIndex, state == .running {
+                        Button(action: onNext) {
+                            targetRow(title: "下一阶段目标", step: plan.steps[nextIndex], action: true)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(state != .running || !canJumpNext)
+                        .accessibilityIdentifier("trainingNextStageTarget")
+                        .accessibilityLabel("跳到下一阶段，速度 \(String(format: "%.1f", plan.steps[nextIndex].speed)) km/h，坡度 \(plan.steps[nextIndex].incline)%")
+                    } else {
+                        targetRow(title: nextIndex == nil ? "最后阶段目标" : "当前阶段目标", step: plan.steps[index], action: false)
+                    }
                 }
             }.padding(.vertical, 6).transaction { $0.animation = nil }
         } else {
             Label(plan.duration % 60 == 0 ? "\(plan.duration / 60) 分钟" : "\(plan.duration / 60) 分 \(plan.duration % 60) 秒", systemImage: "clock")
                 .foregroundStyle(.secondary)
-        }
-        if state == .running {
-            Button("下一阶段", systemImage: "forward.end.fill", action: onNext)
-                .disabled(!canJumpNext).accessibilityIdentifier("trainingNextStage")
-                .transaction { $0.animation = nil }
         }
         DisclosureGroup("查看完整阶段表") {
             ForEach(Array(plan.steps.enumerated()), id: \.element.id) { index, step in
@@ -228,6 +233,65 @@ private struct TrainingPlanControls: View {
             Text("\(clock(step.start))–\(clock(step.start + step.duration)) · " + String(format: "%.1f km/h · 坡度 %d%%", step.speed, step.incline))
                 .foregroundStyle(.secondary)
         }.font(.caption).monospacedDigit().foregroundStyle(.primary)
+    }
+
+    private func remainingTime(index: Int, elapsed: Int) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "clock").accessibilityHidden(true)
+            Text("本阶段剩余 \(clock(max(0, plan.steps[index].start + plan.steps[index].duration - elapsed)))")
+                .accessibilityIdentifier("trainingStageRemaining")
+        }
+        .font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(AppDesign.accent)
+    }
+
+    private var activeTime: some View {
+        HStack(spacing: 4) {
+            Text("已进行").font(.caption).foregroundStyle(.secondary)
+            Text(clock(activeSeconds)).font(.title2.weight(.semibold))
+                .accessibilityIdentifier("trainingElapsed")
+        }.monospacedDigit().fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func targetRow(title: String, step: WorkoutStep, action: Bool) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.caption).foregroundStyle(.secondary)
+                Text(String(format: "%.1f km/h · 坡度 %d%%", step.speed, step.incline))
+                    .font(.headline).monospacedDigit().accessibilityIdentifier("trainingTarget")
+            }
+            Spacer()
+            if action { Image(systemName: "chevron.right").foregroundStyle(AppDesign.accent) }
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct StageProgressView: View {
+    let plan: WorkoutPlan
+    let elapsed: Int
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = max(1, proxy.size.width)
+            let ratio = plan.progress(at: elapsed)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.secondary.opacity(0.14)).frame(height: 8)
+                Capsule().fill(AppDesign.accent).frame(width: width * ratio, height: 8)
+                ForEach(plan.progressMarkers(width: width)) { step in
+                    let position = width * CGFloat(step.start) / CGFloat(max(1, plan.duration))
+                    Circle().fill(AppDesign.accent).frame(width: 9, height: 9)
+                        .position(x: position, y: proxy.size.height / 2)
+                        .accessibilityElement()
+                        .accessibilityLabel("第\(plan.steps.firstIndex(where: { $0.id == step.id }).map { $0 + 1 } ?? 0) 阶段边界，计划时间 \(clock(step.start))")
+                        .accessibilityIdentifier("trainingProgressStage-\(step.id)")
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        }
+        .frame(height: 18)
+        .accessibilityIdentifier("trainingProgress")
+        .transaction { $0.animation = nil }
     }
 }
 
@@ -425,7 +489,7 @@ private struct TrainingDesignPreview: View {
                     activeSeconds: 19,
                     message: state == .paused ? "连接中断，计划已暂停；检查面板后继续" :
                         state == .stopUnconfirmed ? "停止指令发送失败，请重试或使用实体停止键" :
-                        state == .starting ? "等待跑步机倒计时及运行确认" : nil,
+                        nil,
                     primaryEnabled: true, canResume: true, canJumpNext: canJumpNext, canJumpStage: true,
                     onPrimary: { state = state == .idle ? .starting : .stopping },
                     onResume: { state = .running },

@@ -1,5 +1,23 @@
 import Foundation
 
+extension WorkoutPlan {
+    func progress(at elapsed: Int) -> Double {
+        guard duration > 0 else { return 0 }
+        return Double(min(max(0, elapsed), duration)) / Double(duration)
+    }
+
+    func progressMarkers(width: Double) -> [WorkoutStep] {
+        guard duration > 0, width > 0 else { return [] }
+        var markers: [WorkoutStep] = []
+        for step in steps.dropFirst() where step.start > 0 && step.start < duration {
+            if let previous = markers.last,
+               Double(step.start - previous.start) / Double(duration) * width < 12 { continue }
+            markers.append(step)
+        }
+        return markers
+    }
+}
+
 enum TrainingActionState: String {
     case idle, starting, running, paused, stopping, stopUnconfirmed
 
@@ -121,6 +139,14 @@ struct WorkoutRecord: Identifiable, Codable {
     var duration: Double { intervals.reduce(0) { $0 + $1.duration } }
     var start: Date? { intervals.first?.start }
     var end: Date? { intervals.last?.end }
+    var activityTitle: String { running ? "室内跑步" : "室内步行" }
+    var durationText: String {
+        let seconds = max(0, Int(duration))
+        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
+    }
+    var distanceText: String { distanceMeters.map { String(format: "%.2f km", $0 / 1000) } ?? "—" }
+    var energyText: String { energyKcal.map { String(format: "%.0f kcal", $0) } ?? "—" }
+    var startText: String { start?.formatted(.dateTime.month(.wide).day().hour().minute()) ?? "未记录时间" }
 
     func mayDuplicate(start otherStart: Date, end otherEnd: Date) -> Bool {
         guard duration > 0, otherEnd > otherStart else { return false }

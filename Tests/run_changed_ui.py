@@ -8,7 +8,8 @@ import time
 import uuid
 
 root = pathlib.Path(__file__).resolve().parents[1]
-simulator = sys.argv[1] if len(sys.argv) == 2 else sys.exit('Usage: python3 Tests/run_changed_ui.py SIMULATOR_UUID (dedicated test simulator)')
+simulator = sys.argv[1] if len(sys.argv) >= 2 else sys.exit('Usage: python3 Tests/run_changed_ui.py SIMULATOR_UUID [TEST_METHOD ...] (dedicated test simulator)')
+selected_tests = [f'-only-testing:EditorChecks/EditorChecks/{name}' for name in sys.argv[2:]]
 
 def run(*args):
     return subprocess.check_output(args, text=True).strip()
@@ -38,7 +39,7 @@ now = time.time() - 978307200
 records = [dict(id=str(uuid.uuid4()), title=title, running=False,
                 intervals=[dict(start=now-1800-i*3600, end=now-600-i*3600, duration=1200)],
                 distanceMeters=1500, energyKcal=100, healthSaved=False)
-           for i, title in enumerate(['删除交互验证', '保留记录验证'])]
+           for i, title in enumerate(['删除交互验证', '保留记录验证', '分享交互验证'])]
 try:
     paths[0].write_text('[]'); paths[1].write_text('[]'); paths[2].write_text(json.dumps(dict(records=records)))
     with (output / 'ui.log').open('w') as log:
@@ -46,7 +47,7 @@ try:
                         '-destination', f'platform=iOS Simulator,id={simulator}', '-derivedDataPath', str(output / 'ui-build'),
                         '-resultBundlePath', str(output / 'checks.xcresult'), '-collect-test-diagnostics', 'never',
                         '-parallel-testing-enabled', 'NO', '-skip-testing:EditorChecks/EditorChecks/testWorkoutAutomaticSyncSetting',
-                        'test'], stdout=log, stderr=subprocess.STDOUT, check=True)
+                        *selected_tests, 'test'], stdout=log, stderr=subprocess.STDOUT, check=True)
 finally:
     subprocess.run(['xcrun', 'simctl', 'terminate', simulator, 'com.example.TreadmillFTMSProbe'], capture_output=True)
     for path, data in backups.items():

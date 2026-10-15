@@ -371,17 +371,25 @@ struct WorkoutRecordsView: View {
                     }.padding(.vertical, 12)
                 }
                 ForEach(recorder.records) { record in
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label(record.title, systemImage: record.running ? "figure.run" : "figure.walk").font(.headline)
-                        if let start = record.start { Text(start, format: .dateTime.month().day().hour().minute()).font(.caption) }
-                        Text("\(record.running ? "室内跑步" : "室内步行") · \(clock(Int(record.duration)))").font(.subheadline).monospacedDigit()
-                        Text(record.distanceMeters.map { String(format: "距离 %.2f km", $0 / 1000) } ?? "距离：设备未提供连续有效数据")
-                            .font(.caption).foregroundStyle(.secondary)
-                        Text(record.energyKcal.map { String(format: "消耗热量 %.0f kcal", $0) } ?? "消耗热量：设备未提供连续有效数据")
-                            .font(.caption).foregroundStyle(.secondary)
+                    HStack(alignment: .top, spacing: 10) {
+                        NavigationLink(destination: WorkoutRecordDetailView(record: record)) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Label(record.title, systemImage: record.running ? "figure.run" : "figure.walk").font(.headline)
+                                if let start = record.start { Text(start, format: .dateTime.month().day().hour().minute()).font(.caption) }
+                                Text("\(record.running ? "室内跑步" : "室内步行") · \(clock(Int(record.duration)))").font(.subheadline).monospacedDigit()
+                                Text(record.distanceMeters.map { String(format: "距离 %.2f km", $0 / 1000) } ?? "距离：设备未提供连续有效数据")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                Text(record.energyKcal.map { String(format: "消耗热量 %.0f kcal", $0) } ?? "消耗热量：设备未提供连续有效数据")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                         Button(recorder.savingRecordID == record.id ? "同步中…" : record.healthSaved ? "已同步苹果健康" : "重试同步苹果健康") {
                             Task { await recorder.saveToHealth(record) }
-                        }.disabled(record.healthSaved || recorder.saving)
+                        }
+                        .font(.caption)
+                        .buttonStyle(.borderless)
+                        .disabled(record.healthSaved || recorder.saving)
                     }.padding(.vertical, 4)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button("删除", systemImage: "trash") { deletingRecord = record }

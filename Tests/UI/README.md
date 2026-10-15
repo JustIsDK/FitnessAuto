@@ -11,3 +11,5 @@ python3 Tests/run_changed_ui.py SIMULATOR_UUID
 自动同步开关的局部检查为 `EditorChecks/EditorChecks/testWorkoutAutomaticSyncSetting`，在没有运动记录的专用模拟器上单独运行。检查默认开启、关闭后重启保持关闭、重新开启；结束时恢复开启状态，不验收 HealthKit 写入。批量脚本跳过此项，避免开启开关时同步示例记录。
 
 日志和 xcresult 保留在脚本输出的 `/private/tmp/fitnessauto-changed-ui-时间戳/`。训练状态截图来自 Debug 模拟器示例；文件导入使用真实 `onOpenURL` 路由，仍不能替代 AirDrop／文件分享菜单真机验收。无需执行其他 Tab 的全量 UI 检查。
+
+2026-10-15 局部用例另覆盖：启动过程无临时说明；已进行位于进度条上方；阶段节点；下一阶段目标卡与末阶段只读；运动详情和系统分享面板。系统分享面板在 iOS 27 通过 `shareSheet.activity.contentView` 检查，不用 `app.sheets`。不把分享入口测试当作实际接收端保存验证。pytest 命令：`.venv/bin/python -m pytest -q`。

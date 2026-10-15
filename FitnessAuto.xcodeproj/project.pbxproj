@@ -24,6 +24,7 @@
 		B00000000000000000000006 /* TrendSeries.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000016 /* TrendSeries.swift */; };
 		B00000000000000000000007 /* TrendCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000017 /* TrendCharts.swift */; };
 		B00000000000000000000008 /* WatchSessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000018 /* WatchSessionCoordinator.swift */; };
+		B00000000000000000000020 /* WorkoutShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000021 /* WorkoutShare.swift */; };
 		CED80EC0307A6A6E00ED04AE /* FitnessAutoWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = CED80EB6307A6A6D00ED04AE /* FitnessAutoWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -70,6 +71,7 @@
 		B00000000000000000000016 /* TrendSeries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendSeries.swift; sourceTree = "<group>"; };
 		B00000000000000000000017 /* TrendCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendCharts.swift; sourceTree = "<group>"; };
 		B00000000000000000000018 /* WatchSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSessionCoordinator.swift; sourceTree = "<group>"; };
+		B00000000000000000000021 /* WorkoutShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutShare.swift; sourceTree = "<group>"; };
 		CED80EB6307A6A6D00ED04AE /* FitnessAutoWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "FitnessAutoWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -127,6 +129,7 @@
 				B00000000000000000000014 /* WeightHealthStore.swift */,
 				B00000000000000000000015 /* AppDesign.swift */,
 				B00000000000000000000018 /* WatchSessionCoordinator.swift */,
+				B00000000000000000000021 /* WorkoutShare.swift */,
 				B00000000000000000000017 /* TrendCharts.swift */,
 				B00000000000000000000016 /* TrendSeries.swift */,
 				B00000000000000000000012 /* ScaleBluetooth.swift */,
@@ -271,6 +274,7 @@
 				B00000000000000000000001 /* ScaleProtocol.swift in Sources */,
 				A00000000000000000000017 /* WorkoutRecorder.swift in Sources */,
 				A00000000000000000000016 /* WorkoutData.swift in Sources */,
+				B00000000000000000000020 /* WorkoutShare.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -301,7 +305,7 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = FitnessAuto/FitnessAuto.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20261010.5;
+				CURRENT_PROJECT_VERSION = 20261015.1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -337,7 +341,7 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = FitnessAuto/FitnessAuto.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20261010.5;
+				CURRENT_PROJECT_VERSION = 20261015.1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FitnessAuto/Info.plist;
@@ -456,7 +460,7 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 20261010.5;
+				CURRENT_PROJECT_VERSION = 20261015.1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_PREVIEWS = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -521,7 +525,7 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 20261010.5;
+				CURRENT_PROJECT_VERSION = 20261015.1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_PREVIEWS = YES;

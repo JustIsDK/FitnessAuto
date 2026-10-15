@@ -55,7 +55,7 @@ final class EditorChecks: XCTestCase {
             let shot = XCTAttachment(screenshot: app.screenshot())
             shot.name = name; shot.lifetime = .keepAlways; add(shot)
         }
-        for state in ["idle", "running", "stopping", "stopUnconfirmed", "paused"] {
+        for state in ["idle", "starting", "running", "stopping", "stopUnconfirmed", "paused"] {
             app.launchArguments = ["--training-design", state]
             app.launch()
             let primary = app.buttons["trainingPrimaryAction"]
@@ -64,6 +64,13 @@ final class EditorChecks: XCTestCase {
             XCTAssertFalse(app.buttons["跳转到指定阶段"].exists)
             capture(state)
             XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS '个阶段'")).firstMatch.exists)
+            if ["starting", "running", "paused"].contains(state) {
+                let remaining = app.staticTexts["trainingStageRemaining"]
+                XCTAssertTrue(remaining.isHittable)
+                XCTAssertTrue(remaining.label.contains("本阶段剩余"))
+                XCTAssertLessThan(remaining.frame.height, 80)
+                XCTAssertGreaterThan(remaining.frame.width, 150)
+            }
             if state == "idle" {
                 XCTAssertTrue(primary.label.contains("开始训练"))
                 primary.tap()
@@ -74,29 +81,75 @@ final class EditorChecks: XCTestCase {
             } else if state == "running" {
                 XCTAssertTrue(app.staticTexts["trainingStageRemaining"].label.contains("00:01"))
                 XCTAssertEqual(app.staticTexts["trainingElapsed"].label, "00:19")
+                let progress = app.otherElements["trainingProgress"].firstMatch
+                XCTAssertTrue(progress.exists)
+                XCTAssertLessThan(app.staticTexts["trainingElapsed"].frame.maxY, progress.frame.minY)
+                XCTAssertLessThan(app.staticTexts["trainingStageRemaining"].frame.maxY, progress.frame.minY)
                 XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS '计划进度'")).firstMatch.exists)
-                XCTAssertEqual(app.staticTexts["trainingTarget"].label, "目标 5.0 km/h · 坡度 0%")
-                app.buttons["trainingNextStage"].tap()
+                XCTAssertFalse(app.buttons["trainingNextStage"].exists)
+                XCTAssertEqual(app.staticTexts["trainingTarget"].label, "6.0 km/h · 坡度 2%")
+                app.buttons["trainingNextStageTarget"].tap()
                 XCTAssertTrue(app.staticTexts["trainingStageRemaining"].label.contains("00:40"))
                 XCTAssertEqual(app.staticTexts["trainingElapsed"].label, "00:19")
-                XCTAssertEqual(app.staticTexts["trainingTarget"].label, "目标 6.0 km/h · 坡度 2%")
+                XCTAssertEqual(app.staticTexts["trainingTarget"].label, "5.0 km/h · 坡度 6%")
                 app.buttons["查看完整阶段表"].tap()
                 let row = app.buttons["trainingStage-2"]
                 if !row.isHittable { app.swipeUp() }
                 row.tap()
                 app.swipeDown()
-                XCTAssertEqual(app.staticTexts["trainingTarget"].label, "目标 5.0 km/h · 坡度 6%")
+                XCTAssertEqual(app.staticTexts["trainingTarget"].label, "5.0 km/h · 坡度 4%")
                 XCTAssertTrue(app.staticTexts["trainingStageRemaining"].label.contains("01:00"))
                 XCTAssertEqual(app.staticTexts["trainingElapsed"].label, "00:19")
+                let lastStage = app.buttons["trainingStage-17"]
+                for _ in 0..<12 where !lastStage.isHittable { app.swipeUp() }
+                XCTAssertTrue(lastStage.isHittable)
+                lastStage.tap()
+                let lastTarget = app.staticTexts["最后阶段目标"]
+                for _ in 0..<12 where !lastTarget.isHittable { app.swipeDown() }
+                XCTAssertTrue(lastTarget.exists)
+                XCTAssertFalse(app.buttons["trainingNextStageTarget"].exists)
+                XCTAssertEqual(app.staticTexts["trainingTarget"].label, "5.0 km/h · 坡度 4%")
+                capture("last-stage")
             } else if state == "stopping" {
                 XCTAssertFalse(primary.isEnabled)
             } else if state == "stopUnconfirmed" {
                 XCTAssertTrue(primary.label.contains("重试停止"))
-            } else {
+            } else if state == "paused" {
                 XCTAssertTrue(app.buttons["trainingResume"].exists)
+            }
+            if state == "starting" || state == "paused" {
+                XCTAssertFalse(app.buttons["trainingNextStageTarget"].exists)
+                XCTAssertTrue(app.staticTexts["当前阶段目标"].exists)
+            }
+            XCTAssertFalse(app.staticTexts["等待跑步机倒计时及运行确认"].exists)
+            for phrase in ["等待跑步机计时", "开始确认", "等待跑步机开始", "确认启动", "正在准备跑步机控制连接，请稍候", "跑步机正在倒计时，请等待启动完成"] {
+                XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", phrase)).firstMatch.exists)
             }
             app.terminate()
         }
+    }
+    func testWorkoutRecordDetailShareEntry() {
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "com.example.TreadmillFTMSProbe")
+        app.launch()
+        app.tabBars.buttons["运动记录"].tap()
+        let record = app.staticTexts["分享交互验证"]
+        for _ in 0..<5 where !record.isHittable { app.swipeUp() }
+        XCTAssertTrue(record.waitForExistence(timeout: 5))
+        record.tap()
+        XCTAssertTrue(app.navigationBars["运动详情"].waitForExistence(timeout: 5))
+        let share = app.buttons["workoutShare"]
+        XCTAssertTrue(share.exists)
+        XCTAssertTrue(app.buttons["workoutShareToolbar"].exists)
+        let detailShot = XCTAttachment(screenshot: app.screenshot())
+        detailShot.name = "workout-detail"; detailShot.lifetime = .keepAlways; add(detailShot)
+        share.tap()
+        let shareSheet = app.otherElements["shareSheet.activity.contentView"]
+        XCTAssertTrue(shareSheet.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.cells["更多"].exists || app.buttons["保存到文件"].exists)
+        let shareShot = XCTAttachment(screenshot: app.screenshot())
+        shareShot.name = "workout-share-sheet"; shareShot.lifetime = .keepAlways; add(shareShot)
+        app.swipeDown()
     }
     func testCenteredDelete() {
         continueAfterFailure = false

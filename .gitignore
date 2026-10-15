@@ -4,6 +4,9 @@ xcuserdata/
 DerivedData/
 build/
 .build/
+.venv/
+.pytest_cache/
+__pycache__/
 *.ipa
 *.app/
 
